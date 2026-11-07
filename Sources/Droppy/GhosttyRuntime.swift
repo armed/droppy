@@ -260,6 +260,8 @@ final class GhosttyRuntime {
                 return runtime.onAction?(.equalizeSplits, view) ?? false
             case GHOSTTY_ACTION_TOGGLE_SPLIT_ZOOM:
                 return runtime.onAction?(.toggleSplitZoom, view) ?? false
+            case GHOSTTY_ACTION_OPEN_URL:
+                return LinkOpener.open(action.action.open_url)
             case GHOSTTY_ACTION_RELOAD_CONFIG:
                 return runtime.onAction?(.reloadConfig, view) ?? false
             case GHOSTTY_ACTION_OPEN_CONFIG:

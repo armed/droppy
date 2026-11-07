@@ -22,8 +22,8 @@ EXCLUDED = [
     ("belong to the quick terminal", lambda k: k.startswith("quick-terminal-")),
     ("are GTK or Linux only", lambda k: k.startswith(("gtk-", "linux-", "x11-", "adw-"))
         or k in {"language", "class", "async-backend", "freetype-load-flags"}),
-    ("need Ghostty's own user interface (links, search, notifications, bell, scrollbar, overlays, palette)",
-        lambda k: k in {"link", "link-url", "link-osc8", "link-previews", "scrollbar", "resize-overlay",
+    ("need Ghostty's own user interface (link previews, search, notifications, bell, scrollbar, overlays, palette)",
+        lambda k: k in {"link-previews", "scrollbar", "resize-overlay",
                         "resize-overlay-position", "resize-overlay-duration", "command-palette-entry",
                         "app-notifications", "desktop-notifications", "notify-on-command-finish",
                         "notify-on-command-finish-action", "notify-on-command-finish-after", "bell-features",
