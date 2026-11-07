@@ -112,7 +112,10 @@ final class TerminalView: NSView {
 
     override func becomeFirstResponder() -> Bool {
         let accepted = super.becomeFirstResponder()
-        if accepted { setFocused(true) }
+        if accepted {
+            setFocused(true)
+            runtime?.onViewFocused?(self)
+        }
         return accepted
     }
 
@@ -162,6 +165,7 @@ final class TerminalView: NSView {
     }
 
     override func mouseDown(with event: NSEvent) {
+        if window?.firstResponder !== self { window?.makeFirstResponder(self) }
         sendButton(GHOSTTY_MOUSE_PRESS, GHOSTTY_MOUSE_LEFT, event)
     }
 

@@ -21,6 +21,11 @@ enum TerminalAction {
     case closeTab(CloseTabMode)
     case gotoTab(Int32)
     case setTitle(String)
+    case newSplit(SplitDirection)
+    case gotoSplit(SplitFocusTarget)
+    case resizeSplit(SplitDirection, UInt16)
+    case equalizeSplits
+    case toggleSplitZoom
 }
 
 enum GhosttyError: Error {
@@ -37,6 +42,7 @@ final class GhosttyRuntime {
 
     var onCloseSurface: ((TerminalView, Bool) -> Void)?
     var onResizeKey: ((Bool) -> Void)?
+    var onViewFocused: ((TerminalView) -> Void)?
     var onAction: ((TerminalAction, TerminalView?) -> Bool)?
 
     var backgroundColor: NSColor {
@@ -165,6 +171,37 @@ final class GhosttyRuntime {
             case GHOSTTY_ACTION_SET_TITLE:
                 guard let title = action.action.set_title.title else { return false }
                 return runtime.onAction?(.setTitle(String(cString: title)), view) ?? false
+            case GHOSTTY_ACTION_NEW_SPLIT:
+                let direction: SplitDirection = switch action.action.new_split {
+                case GHOSTTY_SPLIT_DIRECTION_LEFT: .left
+                case GHOSTTY_SPLIT_DIRECTION_UP: .up
+                case GHOSTTY_SPLIT_DIRECTION_DOWN: .down
+                default: .right
+                }
+                return runtime.onAction?(.newSplit(direction), view) ?? false
+            case GHOSTTY_ACTION_GOTO_SPLIT:
+                let target: SplitFocusTarget = switch action.action.goto_split {
+                case GHOSTTY_GOTO_SPLIT_PREVIOUS: .previous
+                case GHOSTTY_GOTO_SPLIT_NEXT: .next
+                case GHOSTTY_GOTO_SPLIT_UP: .direction(.up)
+                case GHOSTTY_GOTO_SPLIT_DOWN: .direction(.down)
+                case GHOSTTY_GOTO_SPLIT_LEFT: .direction(.left)
+                default: .direction(.right)
+                }
+                return runtime.onAction?(.gotoSplit(target), view) ?? false
+            case GHOSTTY_ACTION_RESIZE_SPLIT:
+                let resize = action.action.resize_split
+                let direction: SplitDirection = switch resize.direction {
+                case GHOSTTY_RESIZE_SPLIT_UP: .up
+                case GHOSTTY_RESIZE_SPLIT_DOWN: .down
+                case GHOSTTY_RESIZE_SPLIT_LEFT: .left
+                default: .right
+                }
+                return runtime.onAction?(.resizeSplit(direction, resize.amount), view) ?? false
+            case GHOSTTY_ACTION_EQUALIZE_SPLITS:
+                return runtime.onAction?(.equalizeSplits, view) ?? false
+            case GHOSTTY_ACTION_TOGGLE_SPLIT_ZOOM:
+                return runtime.onAction?(.toggleSplitZoom, view) ?? false
             default:
                 return false
             }

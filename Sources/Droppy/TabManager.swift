@@ -29,6 +29,13 @@ final class TabManager {
         return tab
     }
 
+    func split(_ tab: Tab, direction: SplitDirection) {
+        let source = tab.focusedView
+        let view = TerminalView(runtime: runtime, inheritFrom: source, context: GHOSTTY_SURFACE_CONTEXT_SPLIT)
+        tab.split(source, direction: direction, adding: view)
+        onChange?()
+    }
+
     func select(at index: Int) {
         list.select(at: index)
         onChange?()

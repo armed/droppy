@@ -42,6 +42,10 @@ final class PanelController: NSObject, NSWindowDelegate {
         runtime.onCloseSurface = { [weak self] view, processAlive in self?.surfaceClosed(view, processAlive: processAlive) }
         runtime.onResizeKey = { [weak self] in self?.stepHeight(grow: $0) }
         runtime.onAction = { [weak self] action, view in self?.handle(action, from: view) ?? false }
+        runtime.onViewFocused = { [weak self] view in
+            self?.tabs.tab(containing: view)?.focus(view)
+            self?.refreshBar()
+        }
         tabs.onChange = { [weak self] in self?.refreshTabs() }
     }
 
@@ -168,11 +172,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         refreshBar()
         let panelShown = isVisible && panel.isVisible
         for tab in tabs.tabs {
-            let visible = panelShown && tab === tabs.selected
-            for view in tab.views {
-                if visible { view.syncDisplay() }
-                view.setVisible(visible)
-            }
+            tab.setShown(panelShown && tab === tabs.selected)
         }
         if panelShown { focusTerminal() }
     }
@@ -204,8 +204,34 @@ final class PanelController: NSObject, NSWindowDelegate {
             }
         case .gotoTab(let target):
             DispatchQueue.main.async { self.gotoTab(target) }
+        case .newSplit(let direction):
+            DispatchQueue.main.async {
+                guard let tab = self.tab(for: view) else { return }
+                self.tabs.split(tab, direction: direction)
+            }
+        case .gotoSplit(let target):
+            DispatchQueue.main.async { self.focusSplit(target, from: view) }
+        case .resizeSplit(let direction, let amount):
+            tab(for: view)?.resizeSplit(direction, amount: CGFloat(amount))
+        case .equalizeSplits:
+            tab(for: view)?.equalizeSplits()
+        case .toggleSplitZoom:
+            DispatchQueue.main.async {
+                self.tab(for: view)?.toggleZoom()
+                self.refreshTabs()
+            }
         }
         return true
+    }
+
+    private func tab(for view: TerminalView?) -> Tab? {
+        view.flatMap { tabs.tab(containing: $0) } ?? tabs.selected
+    }
+
+    private func focusSplit(_ target: SplitFocusTarget, from view: TerminalView?) {
+        guard let tab = tab(for: view) else { return }
+        tab.focusSplit(target)
+        refreshTabs()
     }
 
     private func gotoTab(_ target: Int32) {
@@ -235,15 +261,21 @@ final class PanelController: NSObject, NSWindowDelegate {
             closeNow(doomed)
             return
         }
+        confirm(title: doomed.count == 1 ? "Close this tab?" : "Close \(doomed.count) tabs?") { [weak self] in
+            self?.closeNow(doomed)
+        }
+    }
+
+    private func confirm(title: String, then action: @escaping @MainActor () -> Void) {
         let alert = NSAlert()
-        alert.messageText = doomed.count == 1 ? "Close this tab?" : "Close \(doomed.count) tabs?"
+        alert.messageText = title
         alert.informativeText = "A process is still running and will be terminated."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Close")
         alert.addButton(withTitle: "Cancel")
-        alert.beginSheetModal(for: panel) { [weak self] response in
+        alert.beginSheetModal(for: panel) { response in
             guard response == .alertFirstButtonReturn else { return }
-            MainActor.assumeIsolated { self?.closeNow(doomed) }
+            MainActor.assumeIsolated { action() }
         }
     }
 
@@ -256,12 +288,23 @@ final class PanelController: NSObject, NSWindowDelegate {
     }
 
     private func surfaceClosed(_ view: TerminalView, processAlive: Bool) {
-        guard let tab = tabs.tab(containing: view) else { return }
-        guard processAlive else {
-            if tab.remove(view) { closeNow([tab]) } else { refreshTabs() }
+        guard tabs.tab(containing: view) != nil else { return }
+        guard processAlive, panel.isVisible else {
+            closePane(view)
             return
         }
-        requestClose([tab])
+        confirm(title: "Close this terminal?") { [weak self] in self?.closePane(view) }
+    }
+
+    // The pane may already be gone by the time a confirmation answers, so membership is re-checked here.
+    private func closePane(_ view: TerminalView) {
+        guard let tab = tabs.tab(containing: view) else { return }
+        if tab.remove(view) {
+            closeNow([tab])
+        } else {
+            view.close()
+            refreshTabs()
+        }
     }
 
     func windowDidResignKey(_ notification: Notification) {
