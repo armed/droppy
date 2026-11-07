@@ -9,11 +9,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var activeBinding: HotKeyBinding?
     private let configStore = ConfigStore()
     private var hotkeyIssue: ConfigIssue?
+    private var appliedGhosttySettings: GhosttySettings?
     private var quitPending = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        configStore.load()
+        let settings = ghosttySettings()
+        appliedGhosttySettings = settings
         do {
-            runtime = try GhosttyRuntime()
+            runtime = try GhosttyRuntime(settings: settings)
         } catch {
             log.fault("ghostty failed to start: \(String(describing: error), privacy: .public)")
             NSApp.terminate(nil)
@@ -21,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         panelController = PanelController(runtime: runtime!)
         panelController?.onOpenConfig = { [weak self] in self?.configStore.openInEditor() }
+        panelController?.onReloadConfig = { [weak self] in self?.reloadConfig() }
 
         setUpMainMenu()
         setUpStatusItem()
@@ -28,13 +33,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let hotKey = GlobalHotKey { [weak self] in self?.panelController?.toggle() }
         self.hotKey = hotKey
         configStore.onChange = { [weak self] _ in self?.applyConfig() }
-        configStore.load()
         applyConfig()
         configStore.startWatching()
     }
 
+    private func ghosttySettings() -> GhosttySettings {
+        GhosttySettings(text: configStore.result.ghosttyText)
+    }
+
     private func applyConfig() {
         let config = configStore.result.config
+        let settings = ghosttySettings()
+        if settings != appliedGhosttySettings {
+            appliedGhosttySettings = settings
+            runtime?.reload(settings)
+        }
         panelController?.apply(config)
         applyHotKey(config.hotkey)
         rebuildStatusMenu()
@@ -101,24 +114,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func rebuildStatusMenu() {
         let menu = NSMenu()
         menu.addItem(withTitle: "Toggle", action: #selector(toggle), keyEquivalent: "").target = self
-        if let issue = configStore.result.issues.first ?? hotkeyIssue {
+        if let problem = firstProblem {
             menu.addItem(.separator())
-            let item = menu.addItem(withTitle: issue.summary, action: nil, keyEquivalent: "")
+            let item = menu.addItem(withTitle: problem, action: nil, keyEquivalent: "")
             item.isEnabled = false
         }
         menu.addItem(.separator())
         menu.addItem(withTitle: "Open Config", action: #selector(openConfig), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Reload Config", action: #selector(reloadConfig), keyEquivalent: "").target = self
+        menu.addItem(withTitle: "Open Config Reference", action: #selector(openReference), keyEquivalent: "").target = self
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         statusItem?.menu = menu
+    }
+
+    // Ghostty names its diagnostics "<path>:<line>:<key>: <problem>"; the temp path is noise to the user.
+    private func ghosttyProblems() -> [(line: Int, text: String)] {
+        (runtime?.diagnostics ?? []).map { diagnostic in
+            if let match = diagnostic.firstMatch(of: /^.*?:(\d+):(.*)$/), let line = Int(match.1) {
+                return (line, "Config line \(line): \(match.2.trimmingCharacters(in: .whitespaces))")
+            }
+            let message = diagnostic.components(separatedBy: ", tried path").first ?? diagnostic
+            // Themes are resolved at finalize time, so their diagnostic carries no location.
+            if diagnostic.hasPrefix("theme "),
+               let index = configStore.result.ghosttyText.split(separator: "\n", omittingEmptySubsequences: false)
+                   .lastIndex(where: { $0.hasPrefix("theme") }) {
+                return (index + 1, "Config line \(index + 1): \(message)")
+            }
+            return (Int.max, "Ghostty config: \(message)")
+        }
+    }
+
+    private var firstProblem: String? {
+        var problems = configStore.result.issues.map { (line: $0.line, text: $0.summary) }
+        if let hotkeyIssue { problems.append((hotkeyIssue.line > 0 ? hotkeyIssue.line : Int.max, hotkeyIssue.summary)) }
+        problems += ghosttyProblems()
+        return problems.min { $0.line < $1.line }?.text
     }
 
     @objc private func openConfig() {
         configStore.openInEditor()
     }
 
+    @objc private func openReference() {
+        configStore.openReference()
+    }
+
     @objc private func reloadConfig() {
+        appliedGhosttySettings = nil
         configStore.forceReload()
     }
 

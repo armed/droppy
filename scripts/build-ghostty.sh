@@ -32,4 +32,8 @@ rm -rf "$out/share"
 mkdir -p "$out/share/ghostty"
 cp -R zig-out/share/terminfo "$out/share/"
 cp -R zig-out/share/ghostty/shell-integration "$out/share/ghostty/"
+cp -R zig-out/share/ghostty/themes "$out/share/ghostty/"
+mkdir -p "$out/share/droppy"
+python3 "$root/scripts/generate-config-template.py" \
+  zig-out/share/ghostty/doc/ghostty.5.md src/config/Config.zig "$out/share/droppy/config.template"
 echo "installed $out/GhosttyKit.xcframework and $out/share"

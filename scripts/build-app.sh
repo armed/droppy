@@ -5,7 +5,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 config="${1:-release}"
 app="$root/.build/Droppy.app"
 
-if [ ! -d "$root/Vendor/GhosttyKit.xcframework" ] || [ ! -d "$root/Vendor/share" ]; then
+if [ ! -d "$root/Vendor/GhosttyKit.xcframework" ] || [ ! -d "$root/Vendor/share" ] || [ ! -f "$root/Vendor/share/droppy/config.template" ]; then
   echo "Vendor/ is incomplete; run scripts/build-ghostty.sh first" >&2
   exit 1
 fi
@@ -19,6 +19,7 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$bin" "$app/Contents/MacOS/Droppy"
 cp -R Vendor/share/terminfo "$app/Contents/Resources/"
 cp -R Vendor/share/ghostty "$app/Contents/Resources/"
+cp Vendor/share/droppy/config.template "$app/Contents/Resources/"
 
 cat > "$app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>

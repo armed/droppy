@@ -21,3 +21,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+Vendor/share/ghostty/themes, bundled into the app, is the theme collection that ships with Ghostty
+(https://github.com/ghostty-org/ghostty); each theme keeps the licence of its upstream colour scheme.

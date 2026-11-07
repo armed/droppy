@@ -10,10 +10,10 @@ struct TabBarPalette {
     let text: NSColor
     let selectedText: NSColor
 
-    init(terminalBackground: NSColor) {
+    init(terminalBackground: NSColor, opacity: CGFloat = 1) {
         let base = terminalBackground.usingColorSpace(.sRGB) ?? .black
-        bar = base.blended(withFraction: 0.35, of: .black) ?? .black
-        selected = base
+        bar = (base.blended(withFraction: 0.35, of: .black) ?? .black).withAlphaComponent(opacity)
+        selected = base.withAlphaComponent(opacity)
         let isDark = base.brightnessComponent < 0.5
         text = (isDark ? NSColor.white : NSColor.black).withAlphaComponent(0.5)
         selectedText = (isDark ? NSColor.white : NSColor.black).withAlphaComponent(0.92)

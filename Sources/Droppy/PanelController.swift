@@ -6,6 +6,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     var animationDuration: TimeInterval = 0.2
     var hidesOnFocusLoss = true
     var onOpenConfig: (() -> Void)?
+    var onReloadConfig: (() -> Void)?
 
     // The height the user adjusted at runtime is kept next to the file's height it was based on, so editing
     // the file's height wins over it without the runtime value ever being written into the file.
@@ -47,6 +48,8 @@ final class PanelController: NSObject, NSWindowDelegate {
             self?.refreshBar()
         }
         tabs.onChange = { [weak self] in self?.refreshTabs() }
+        runtime.onConfigChange = { [weak self] in self?.refreshAppearance() }
+        refreshAppearance()
     }
 
     func toggle() {
@@ -198,12 +201,20 @@ final class PanelController: NSObject, NSWindowDelegate {
         panel.makeFirstResponder(view)
     }
 
+    // With a translucent terminal background the window must not paint an opaque backdrop behind it.
+    private func refreshAppearance() {
+        let opaque = runtime.backgroundOpacity >= 1
+        panel.isOpaque = opaque
+        panel.backgroundColor = opaque ? .black : .clear
+        refreshBar()
+    }
+
     private func refreshBar() {
         content.tabBarVisible = tabs.tabs.count > 1
         content.tabBar.update(
             titles: tabs.tabs.map(\.title),
             selected: tabs.selectedIndex,
-            palette: TabBarPalette(terminalBackground: runtime.backgroundColor)
+            palette: TabBarPalette(terminalBackground: runtime.backgroundColor, opacity: runtime.backgroundOpacity)
         )
     }
 
@@ -260,6 +271,8 @@ final class PanelController: NSObject, NSWindowDelegate {
                 self.tab(for: view)?.toggleZoom()
                 self.refreshTabs()
             }
+        case .reloadConfig:
+            DispatchQueue.main.async { self.onReloadConfig?() }
         case .openConfig:
             DispatchQueue.main.async { self.onOpenConfig?() }
         case .quit:

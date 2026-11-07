@@ -4,10 +4,14 @@ import os
 
 let log = Logger(subsystem: "dev.droppy.Droppy", category: "app")
 
+struct GhosttySettings: Equatable {
+    var text = ""
+}
+
 // Only wakeup runs off the main thread; every other callback fires synchronously inside a call
 // into libghostty, all of which happen on main. This wrapper only moves pointers into
 // assumeIsolated without tripping the sending checker.
-private struct Handoff<T>: @unchecked Sendable {
+struct Handoff<T>: @unchecked Sendable {
     let value: T
     init(_ value: T) { self.value = value }
 }
@@ -28,6 +32,7 @@ enum TerminalAction {
     case toggleSplitZoom
     case quit
     case openConfig
+    case reloadConfig
 }
 
 enum GhosttyError: Error {
@@ -45,7 +50,15 @@ final class GhosttyRuntime {
     var onCloseSurface: ((TerminalView, Bool) -> Void)?
     var onResizeKey: ((Bool) -> Void)?
     var onViewFocused: ((TerminalView) -> Void)?
+    var onConfigChange: (() -> Void)?
+    private(set) var diagnostics: [String] = []
     var onAction: ((TerminalAction, TerminalView?) -> Bool)?
+
+    var backgroundOpacity: CGFloat {
+        var opacity = 1.0
+        guard let config, ghostty_config_get(config, &opacity, "background-opacity", 18) else { return 1 }
+        return CGFloat(min(max(opacity, 0), 1))
+    }
 
     var backgroundColor: NSColor {
         var color = ghostty_config_color_s()
@@ -58,13 +71,13 @@ final class GhosttyRuntime {
         )
     }
 
-    init() throws {
+    init(settings: GhosttySettings) throws {
         guard ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) == GHOSTTY_SUCCESS else {
             throw GhosttyError.initFailed
         }
-        guard let config = ghostty_config_new() else { throw GhosttyError.configFailed }
-        ghostty_config_finalize(config)
+        guard let config = Self.makeConfig(settings) else { throw GhosttyError.configFailed }
         self.config = config
+        diagnostics = Self.diagnostics(of: config)
 
         var runtime = Self.runtimeConfig(userdata: Unmanaged.passUnretained(self).toOpaque())
         guard let app = ghostty_app_new(&runtime, config) else { throw GhosttyError.appFailed }
@@ -89,6 +102,49 @@ final class GhosttyRuntime {
                 if let app = self?.app { ghostty_app_keyboard_changed(app) }
             }
         })
+    }
+
+    // Droppy's file is the only source: nothing under ~/.config/ghostty or Application Support is read.
+    private static func makeConfig(_ settings: GhosttySettings) -> ghostty_config_t? {
+        guard let config = ghostty_config_new() else { return nil }
+        if !settings.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let path = writeOverride(settings.text) {
+            ghostty_config_load_file(config, path)
+        }
+        ghostty_config_finalize(config)
+        return config
+    }
+
+    // The C API only loads files. Keeping the user's line numbers makes Ghostty's diagnostics point at the real file.
+    private static func writeOverride(_ text: String) -> String? {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("dev.droppy.Droppy", isDirectory: true)
+        let url = directory.appendingPathComponent("config-\(ProcessInfo.processInfo.processIdentifier)")
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try (text + "\n").write(to: url, atomically: true, encoding: .utf8)
+            return url.path
+        } catch {
+            log.error("cannot write ghostty config: \(String(describing: error), privacy: .public)")
+            return nil
+        }
+    }
+
+    private static func diagnostics(of config: ghostty_config_t) -> [String] {
+        (0..<ghostty_config_diagnostics_count(config)).compactMap { index in
+            let diagnostic = ghostty_config_get_diagnostic(config, index)
+            guard let message = diagnostic.message else { return nil }
+            let text = String(cString: message)
+            log.error("ghostty config: \(text, privacy: .public)")
+            return text
+        }
+    }
+
+    func reload(_ settings: GhosttySettings) {
+        guard let app, let fresh = Self.makeConfig(settings) else { return }
+        diagnostics = Self.diagnostics(of: fresh)
+        ghostty_app_update_config(app, fresh)
+        if let old = config { ghostty_config_free(old) }
+        config = fresh
+        onConfigChange?()
     }
 
     private func setFocus(_ focused: Bool) {
@@ -204,6 +260,8 @@ final class GhosttyRuntime {
                 return runtime.onAction?(.equalizeSplits, view) ?? false
             case GHOSTTY_ACTION_TOGGLE_SPLIT_ZOOM:
                 return runtime.onAction?(.toggleSplitZoom, view) ?? false
+            case GHOSTTY_ACTION_RELOAD_CONFIG:
+                return runtime.onAction?(.reloadConfig, view) ?? false
             case GHOSTTY_ACTION_OPEN_CONFIG:
                 return runtime.onAction?(.openConfig, view) ?? false
             case GHOSTTY_ACTION_QUIT:

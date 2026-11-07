@@ -23,7 +23,7 @@ final class ConfigStore {
 
     func load() {
         lastText = Self.readText()
-        result = ConfigParser.parse(lastText ?? "")
+        result = ConfigParser.parse(lastText ?? "", baseDirectory: Self.url.resolvingSymlinksInPath().deletingLastPathComponent().path)
         for issue in result.issues { log.error("\(issue.summary, privacy: .public)") }
     }
 
@@ -52,7 +52,7 @@ final class ConfigStore {
         let link = Self.url
         let target = link.resolvingSymlinksInPath()
         for path in Set([link.deletingLastPathComponent().path, target.deletingLastPathComponent().path, target.path]) {
-            let descriptor = open(path, O_EVTONLY)
+            let descriptor = Darwin.open(path, O_EVTONLY)
             guard descriptor >= 0 else { continue }
             let source = DispatchSource.makeFileSystemObjectSource(
                 fileDescriptor: descriptor,
@@ -85,6 +85,20 @@ final class ConfigStore {
         try? String(contentsOf: url.resolvingSymlinksInPath(), encoding: .utf8)
     }
 
+    // A copy in the temp directory keeps the reference read-only and out of any dotfiles repository.
+    func openReference() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("droppy-config-reference.txt")
+        try? FileManager.default.removeItem(at: url)
+        do {
+            try ConfigParser.template.write(to: url, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: url.path)
+        } catch {
+            log.error("cannot write config reference: \(String(describing: error), privacy: .public)")
+            return
+        }
+        openInTextEditor(url)
+    }
+
     func openInEditor() {
         let url = Self.url
         if !FileManager.default.fileExists(atPath: url.resolvingSymlinksInPath().path) {
@@ -97,6 +111,10 @@ final class ConfigStore {
             }
             rearm()
         }
+        openInTextEditor(url)
+    }
+
+    private func openInTextEditor(_ url: URL) {
         let workspace = NSWorkspace.shared
         if let editor = workspace.urlForApplication(toOpen: .plainText) {
             workspace.open([url], withApplicationAt: editor, configuration: NSWorkspace.OpenConfiguration())

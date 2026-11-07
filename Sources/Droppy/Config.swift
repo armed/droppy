@@ -26,11 +26,15 @@ struct ConfigParseResult {
     var config = Config()
     var issues: [ConfigIssue] = []
     var hotkeyLine: Int?
+    // The file as Ghostty gets it: only the lines Droppy does not own, at their original line numbers.
+    var ghosttyText = ""
 }
 
 enum ConfigParser {
-    static let template = """
-    # Droppy configuration. Lines are `key = value`; everything shown is the default.
+    static let header = """
+    # Droppy configuration. Lines are `key = value`; this file is the only configuration Droppy reads.
+    # Everything below is commented out at its default. The first section is Droppy's own;
+    # every other key is passed to Ghostty's terminal core unchanged, see the reference section.
 
     # Global shortcut: modifiers (ctrl, opt, cmd, shift) and one key, joined by +.
     # hotkey = ctrl+grave
@@ -51,21 +55,40 @@ enum ConfigParser {
     # Hide the panel when another window takes focus.
     # hide-on-focus-loss = true
 
+
     """
+
+    // The reference part is generated from Ghostty's documentation at build time.
+    static var template: String {
+        let generated = Bundle.main.url(forResource: "config", withExtension: "template")
+            .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+        return header + (generated ?? "")
+    }
+
+    static let ownedKeys: Set<String> = ["hotkey", "position", "alignment", "width", "height", "tab-bar", "hide-on-focus-loss"]
+
+    // Ghostty resolves relative paths against the file it loads, which for the forwarded copy would be the
+    // temp directory, so the path-valued keys are made absolute against the real config directory.
+    static let pathKeys: Set<String> = ["custom-shader", "background-image"]
 
     static let widthRange: ClosedRange<CGFloat> = 0.2...1.0
 
-    static func parse(_ text: String) -> ConfigParseResult {
+    static func parse(_ text: String, baseDirectory: String? = nil) -> ConfigParseResult {
         var result = ConfigParseResult()
+        var forwarded: [String] = []
         for (index, rawLine) in text.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).enumerated() {
             let number = index + 1
             let line = rawLine.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty || line.hasPrefix("#") { continue }
-            guard let equals = line.firstIndex(of: "=") else {
-                result.issues.append(ConfigIssue(line: number, message: "expected key = value"))
+            guard !line.isEmpty, !line.hasPrefix("#"), let equals = line.firstIndex(of: "=") else {
+                forwarded.append(line.isEmpty || line.hasPrefix("#") ? "" : line)
                 continue
             }
             let key = line[..<equals].trimmingCharacters(in: .whitespaces).lowercased()
+            guard ownedKeys.contains(key) else {
+                forwarded.append(forwardedLine(line, key: key, equals: equals, baseDirectory: baseDirectory))
+                continue
+            }
+            forwarded.append("")
             var value = String(line[line.index(after: equals)...])
             if let comment = value.range(of: " #") ?? value.range(of: "\t#") { value = String(value[..<comment.lowerBound]) }
             value = value.trimmingCharacters(in: .whitespaces)
@@ -75,7 +98,17 @@ enum ConfigParser {
                 result.hotkeyLine = number
             }
         }
+        result.ghosttyText = forwarded.joined(separator: "\n")
         return result
+    }
+
+    private static func forwardedLine(_ line: String, key: String, equals: String.Index, baseDirectory: String?) -> String {
+        guard pathKeys.contains(key), let baseDirectory else { return line }
+        var value = String(line[line.index(after: equals)...]).trimmingCharacters(in: .whitespaces)
+        let optional = value.hasPrefix("?")
+        if optional { value.removeFirst() }
+        guard !value.isEmpty, !value.hasPrefix("/"), !value.hasPrefix("~") else { return line }
+        return "\(key) = \(optional ? "?" : "")\(baseDirectory)/\(value)"
     }
 
     private static func apply(key: String, value: String, to config: inout Config) -> String? {
@@ -105,7 +138,7 @@ enum ConfigParser {
             guard let flag = ["true": true, "false": false][value.lowercased()] else { return "expected true or false" }
             config.hideOnFocusLoss = flag
         default:
-            return "unknown key \(key)"
+            return nil
         }
         return nil
     }
