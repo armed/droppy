@@ -6,6 +6,7 @@ import GhosttyKit
 final class TerminalView: NSView {
     private(set) var surface: ghostty_surface_t?
     weak var runtime: GhosttyRuntime?
+    var willClose: (() -> Void)?
 
     var cellSize: NSSize = .zero
     private var cursor: NSCursor = .arrow
@@ -53,6 +54,8 @@ final class TerminalView: NSView {
     }
 
     func close() {
+        willClose?()
+        willClose = nil
         guard let surface else { return }
         self.surface = nil
         ghostty_surface_free(surface)

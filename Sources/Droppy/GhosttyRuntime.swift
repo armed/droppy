@@ -4,6 +4,13 @@ import os
 
 let log = Logger(subsystem: "dev.droppy.Droppy", category: "app")
 
+struct PasteConfirmation {
+    let text: String
+    let contents: [(mime: String, data: Data)]
+    let available: [String]
+    let state: UnsafeMutableRawPointer
+}
+
 struct GhosttySettings: Equatable {
     var text = ""
 }
@@ -51,6 +58,7 @@ final class GhosttyRuntime {
     var onResizeKey: ((Bool) -> Void)?
     var onViewFocused: ((TerminalView) -> Void)?
     var onConfigChange: (() -> Void)?
+    var onConfirmPaste: ((TerminalView, PasteConfirmation) -> Void)?
     private(set) var diagnostics: [String] = []
     var onAction: ((TerminalAction, TerminalView?) -> Bool)?
 
@@ -316,28 +324,55 @@ final class GhosttyRuntime {
     }
 
     private static func complete(surface: ghostty_surface_t, state: UnsafeMutableRawPointer, text: String) {
-        let length = text.utf8.count
-        text.withCString { data in
-            "text/plain".withCString { mime in
-                var content = ghostty_clipboard_content_s(mime: mime, data: data, len: length)
-                var available: UnsafePointer<CChar>? = mime
-                withUnsafePointer(to: &content) { contentPointer in
-                    withUnsafePointer(to: &available) { availablePointer in
-                        var request = ghostty_clipboard_complete_s(
-                            contents: contentPointer,
-                            contents_len: 1,
-                            available: availablePointer,
-                            available_len: 1,
-                            confirmed: false,
-                            remember: false
-                        )
-                        ghostty_surface_complete_clipboard_request(surface, &request, state)
-                    }
-                }
+        completeRequest(surface: surface, state: state, contents: [("text/plain", Data(text.utf8))], available: ["text/plain"], confirmed: false)
+    }
+
+    static func completeRequest(
+        surface: ghostty_surface_t,
+        state: UnsafeMutableRawPointer,
+        contents: [(mime: String, data: Data)],
+        available: [String],
+        confirmed: Bool
+    ) {
+        var strings: [UnsafeMutablePointer<CChar>] = []
+        var buffers: [UnsafeMutableRawPointer] = []
+        defer {
+            strings.forEach { free($0) }
+            buffers.forEach { $0.deallocate() }
+        }
+        var items: [ghostty_clipboard_content_s] = []
+        for entry in contents {
+            guard let mime = strdup(entry.mime) else { continue }
+            strings.append(mime)
+            let buffer = UnsafeMutableRawPointer.allocate(byteCount: max(entry.data.count, 1), alignment: 1)
+            buffers.append(buffer)
+            entry.data.withUnsafeBytes { source in
+                if let base = source.baseAddress { buffer.copyMemory(from: base, byteCount: source.count) }
+            }
+            items.append(ghostty_clipboard_content_s(mime: mime, data: buffer.assumingMemoryBound(to: CChar.self), len: entry.data.count))
+        }
+        var names: [UnsafePointer<CChar>?] = available.compactMap { strdup($0) }.map { pointer in
+            strings.append(pointer)
+            return UnsafePointer(pointer)
+        }
+        items.withUnsafeBufferPointer { itemPointer in
+            names.withUnsafeMutableBufferPointer { namePointer in
+                var request = ghostty_clipboard_complete_s(
+                    contents: itemPointer.baseAddress,
+                    contents_len: itemPointer.count,
+                    available: UnsafePointer(OpaquePointer(namePointer.baseAddress)),
+                    available_len: namePointer.count,
+                    confirmed: confirmed,
+                    remember: false
+                )
+                ghostty_surface_complete_clipboard_request(surface, &request, state)
             }
         }
     }
 
+    // The callback's pointers die when it returns, so everything the sheet needs is copied before it is shown.
+    // Only an unsafe paste reaches the user; OSC 52 requests stay denied, as the core would otherwise let a
+    // program read or replace the clipboard.
     private nonisolated static func confirmReadClipboard(
         _ userdata: UnsafeMutableRawPointer?,
         _ confirm: UnsafePointer<ghostty_clipboard_confirm_s>?,
@@ -349,19 +384,23 @@ final class GhosttyRuntime {
         MainActor.assumeIsolated {
             let view = Unmanaged<TerminalView>.fromOpaque(viewPointer.value).takeUnretainedValue()
             guard let surface = view.surface else { return }
-            guard request == GHOSTTY_CLIPBOARD_REQUEST_PASTE, let pending = confirmPointer.value?.pointee else {
+            guard request == GHOSTTY_CLIPBOARD_REQUEST_PASTE, let pending = confirmPointer.value?.pointee,
+                  let handler = view.runtime?.onConfirmPaste else {
                 ghostty_surface_deny_clipboard_request(surface, statePointer.value)
                 return
             }
-            var approved = ghostty_clipboard_complete_s(
-                contents: pending.contents,
-                contents_len: pending.contents_len,
-                available: pending.available,
-                available_len: pending.available_len,
-                confirmed: true,
-                remember: false
-            )
-            ghostty_surface_complete_clipboard_request(surface, &approved, statePointer.value)
+            var contents: [(mime: String, data: Data)] = []
+            for index in 0..<pending.contents_len {
+                guard let item = pending.contents?[index], let mime = item.mime else { continue }
+                let data = item.len > 0 && item.data != nil ? Data(bytes: item.data!, count: item.len) : Data()
+                contents.append((String(cString: mime), data))
+            }
+            var available: [String] = []
+            for index in 0..<pending.available_len {
+                if let name = pending.available?[index] { available.append(String(cString: name)) }
+            }
+            let text = contents.first { $0.mime == "text/plain" }.flatMap { String(data: $0.data, encoding: .utf8) } ?? ""
+            handler(view, PasteConfirmation(text: text, contents: contents, available: available, state: statePointer.value))
         }
     }
 

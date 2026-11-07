@@ -1,4 +1,5 @@
 import AppKit
+import GhosttyKit
 
 @MainActor
 final class PanelController: NSObject, NSWindowDelegate {
@@ -49,6 +50,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         }
         tabs.onChange = { [weak self] in self?.refreshTabs() }
         runtime.onConfigChange = { [weak self] in self?.refreshAppearance() }
+        runtime.onConfirmPaste = { [weak self] view, request in self?.confirmPaste(view, request) }
         refreshAppearance()
     }
 
@@ -351,6 +353,64 @@ final class PanelController: NSObject, NSWindowDelegate {
         if !quit, let previous, previous != NSRunningApplication.current { previous.activate(options: []) }
         // NSApp.reply must not run before applicationShouldTerminate has returned .terminateLater.
         DispatchQueue.main.async { answer(quit) }
+    }
+
+    // Cancel is the default button so a stray Return never pastes. If the surface goes away while the sheet is up,
+    // the request is denied first, while the surface is still valid, and the sheet is dismissed.
+    private func confirmPaste(_ view: TerminalView, _ request: PasteConfirmation) {
+        guard let surface = view.surface else { return }
+        guard isVisible, panel.isVisible, panel.attachedSheet == nil else {
+            ghostty_surface_deny_clipboard_request(surface, request.state)
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = "Paste this text?"
+        alert.informativeText = "Pasting it may run commands immediately."
+        alert.alertStyle = .warning
+        alert.accessoryView = Self.previewView(for: request.text)
+        let paste = alert.addButton(withTitle: "Paste")
+        let cancel = alert.addButton(withTitle: "Cancel")
+        paste.keyEquivalent = ""
+        cancel.keyEquivalent = "\r"
+        panel.makeFirstResponder(nil)
+
+        var answered = false
+        let answer: (Bool) -> Void = { [weak view] paste in
+            guard !answered, let view, let surface = view.surface else { return }
+            answered = true
+            view.willClose = nil
+            if paste {
+                GhosttyRuntime.completeRequest(surface: surface, state: request.state, contents: request.contents, available: request.available, confirmed: true)
+            } else {
+                ghostty_surface_deny_clipboard_request(surface, request.state)
+            }
+        }
+        view.willClose = { [weak self, weak alert] in
+            answer(false)
+            if let sheet = alert?.window { self?.panel.endSheet(sheet) }
+        }
+        alert.beginSheetModal(for: panel) { [weak self] response in
+            MainActor.assumeIsolated {
+                answer(response == .alertFirstButtonReturn)
+                self?.focusTerminal()
+            }
+        }
+    }
+
+    private static func previewView(for text: String) -> NSView {
+        let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: 460, height: 160))
+        scroll.hasVerticalScroller = true
+        scroll.borderType = .bezelBorder
+        let textView = NSTextView(frame: scroll.bounds)
+        textView.isEditable = false
+        textView.isSelectable = true
+        textView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        textView.string = text
+        textView.autoresizingMask = [.width]
+        textView.isVerticallyResizable = true
+        textView.textContainer?.widthTracksTextView = true
+        scroll.documentView = textView
+        return scroll
     }
 
     private func confirm(title: String, then action: @escaping @MainActor () -> Void) {
