@@ -5,6 +5,13 @@ enum PanelAlignment {
     case start, center, end
 }
 
+struct RGBA: Equatable {
+    var red: Double
+    var green: Double
+    var blue: Double
+    var alpha: Double
+}
+
 struct Config: Equatable {
     var hotkey = HotKeyBinding.default
     var position = PanelEdge.top
@@ -13,6 +20,10 @@ struct Config: Equatable {
     var height: CGFloat = 0.4
     var tabBar = TabBarPosition.bottom
     var hideOnFocusLoss = true
+    var borderWidth: CGFloat = 1
+    // nil derives the colour from the terminal theme.
+    var borderColor: RGBA?
+    var shadow = true
 }
 
 struct ConfigIssue: Equatable {
@@ -55,6 +66,15 @@ enum ConfigParser {
     # Hide the panel when another window takes focus.
     # hide-on-focus-loss = true
 
+    # A line along the panel's free sides, in points; 0 turns it off.
+    # border-width = 1
+
+    # auto derives a quiet colour from the terminal's own; or #rrggbb / #rrggbbaa.
+    # border-color = auto
+
+    # A drop shadow around the panel.
+    # shadow = true
+
 
     """
 
@@ -65,7 +85,8 @@ enum ConfigParser {
         return header + (generated ?? "")
     }
 
-    static let ownedKeys: Set<String> = ["hotkey", "position", "alignment", "width", "height", "tab-bar", "hide-on-focus-loss"]
+    static let ownedKeys: Set<String> = ["hotkey", "position", "alignment", "width", "height", "tab-bar", "hide-on-focus-loss",
+                                       "border-width", "border-color", "shadow"]
 
     // Ghostty resolves relative paths against the file it loads, which for the forwarded copy would be the
     // temp directory, so the path-valued keys are made absolute against the real config directory.
@@ -89,7 +110,8 @@ enum ConfigParser {
                 continue
             }
             forwarded.append("")
-            var value = String(line[line.index(after: equals)...])
+            // Trimmed first so a value that itself starts with # (a colour) is not taken for a comment.
+            var value = String(line[line.index(after: equals)...]).trimmingCharacters(in: .whitespaces)
             if let comment = value.range(of: " #") ?? value.range(of: "\t#") { value = String(value[..<comment.lowerBound]) }
             value = value.trimmingCharacters(in: .whitespaces)
             if let message = apply(key: key, value: value, to: &result.config) {
@@ -134,6 +156,19 @@ enum ConfigParser {
             guard let position = ["top": TabBarPosition.top, "bottom": .bottom][value.lowercased()]
             else { return "unknown tab-bar position" }
             config.tabBar = position
+        case "border-width":
+            guard let width = Double(value), width.isFinite, (0...20).contains(width) else { return "invalid border-width" }
+            config.borderWidth = CGFloat(width)
+        case "border-color":
+            if value.lowercased() == "auto" {
+                config.borderColor = nil
+            } else {
+                guard let color = parseColor(value) else { return "invalid border-color" }
+                config.borderColor = color
+            }
+        case "shadow":
+            guard let flag = ["true": true, "false": false][value.lowercased()] else { return "expected true or false" }
+            config.shadow = flag
         case "hide-on-focus-loss":
             guard let flag = ["true": true, "false": false][value.lowercased()] else { return "expected true or false" }
             config.hideOnFocusLoss = flag
@@ -141,6 +176,15 @@ enum ConfigParser {
             return nil
         }
         return nil
+    }
+
+    static func parseColor(_ value: String) -> RGBA? {
+        guard value.hasPrefix("#"), [7, 9].contains(value.count), let number = UInt64(value.dropFirst(), radix: 16) else { return nil }
+        let hasAlpha = value.count == 9
+        let channel = { (shift: UInt64) in Double((number >> shift) & 0xFF) / 255 }
+        return hasAlpha
+            ? RGBA(red: channel(24), green: channel(16), blue: channel(8), alpha: channel(0))
+            : RGBA(red: channel(16), green: channel(8), blue: channel(0), alpha: 1)
     }
 
     static func parsePercent(_ value: String) -> CGFloat? {

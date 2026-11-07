@@ -14,7 +14,7 @@ final class DropPanel: NSPanel {
         collectionBehavior = [.canJoinAllSpaces, .ignoresCycle, .fullScreenAuxiliary]
         isReleasedWhenClosed = false
         hidesOnDeactivate = false
-        hasShadow = false
+        hasShadow = true
         animationBehavior = .none
         backgroundColor = .black
     }

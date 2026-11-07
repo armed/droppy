@@ -27,10 +27,61 @@ final class ResizeStrip: NSView {
     }
 }
 
+// Sits above the terminal's Metal layers and must never take a click meant for the strip, tabs or terminal.
+final class BorderView: NSView {
+    private let layers = [PanelSides.top, .bottom, .left, .right].map { ($0, CALayer()) }
+    private var sides: PanelSides = []
+    private var width: CGFloat = 0
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.zPosition = 1000
+        for (_, line) in layers { layer?.addSublayer(line) }
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not supported")
+    }
+
+    func update(sides: PanelSides, width: CGFloat, color: NSColor) {
+        self.sides = sides
+        self.width = width
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for (side, line) in layers {
+            line.backgroundColor = color.cgColor
+            line.isHidden = width <= 0 || !sides.contains(side)
+        }
+        CATransaction.commit()
+        needsLayout = true
+    }
+
+    override func layout() {
+        super.layout()
+        let scale = window?.backingScaleFactor ?? 2
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for (side, line) in layers {
+            line.contentsScale = scale
+            switch side {
+            case .top: line.frame = NSRect(x: 0, y: bounds.height - width, width: bounds.width, height: width)
+            case .bottom: line.frame = NSRect(x: 0, y: 0, width: bounds.width, height: width)
+            case .left: line.frame = NSRect(x: 0, y: 0, width: width, height: bounds.height)
+            default: line.frame = NSRect(x: bounds.width - width, y: 0, width: width, height: bounds.height)
+            }
+        }
+        CATransaction.commit()
+    }
+}
+
 @MainActor
 final class PanelContentView: NSView {
     let strip = ResizeStrip()
     let tabBar = TabBarView(frame: .zero)
+    let border = BorderView(frame: .zero)
 
     var stripAtTop = false { didSet { relayout() } }
     var tabBarPosition = TabBarPosition.bottom { didSet { relayout() } }
@@ -54,6 +105,7 @@ final class PanelContentView: NSView {
         tabBar.isHidden = true
         addSubview(tabBar)
         addSubview(strip)
+        addSubview(border)
     }
 
     required init?(coder: NSCoder) {
@@ -92,5 +144,6 @@ final class PanelContentView: NSView {
         shown?.frame = area
         let stripY = stripAtTop ? height - ResizeStrip.thickness : 0
         strip.frame = NSRect(x: 0, y: stripY, width: width, height: ResizeStrip.thickness)
+        border.frame = bounds
     }
 }

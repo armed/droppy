@@ -20,6 +20,8 @@ final class PanelController: NSObject, NSWindowDelegate {
     private let content = PanelContentView()
     private let tabs: TabManager
     private var configHeight: CGFloat = 0.4
+    private var borderWidth: CGFloat = 1
+    private var borderColor: RGBA?
     private var previousApp: NSRunningApplication?
     private var animationToken = 0
     private var animationsInFlight = 0
@@ -72,6 +74,7 @@ final class PanelController: NSObject, NSWindowDelegate {
 
         let screen = screenUnderMouse()
         shownScreen = screen
+        updateBorder()
         let shown = geometry.shownFrame(on: screen)
         let hidden = geometry.hiddenFrame(for: shown, on: screen)
 
@@ -88,6 +91,7 @@ final class PanelController: NSObject, NSWindowDelegate {
             // Floating (rather than popUpMenu) lets IME candidate windows appear above the panel.
             self.panel.level = .floating
             self.focusTerminal()
+            self.panel.invalidateShadow()
             if !NSApp.isActive { NSApp.activate(ignoringOtherApps: true) }
         }
     }
@@ -160,6 +164,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     private func applyHeight() {
         guard isVisible, animationsInFlight == 0, let screen = shownScreen else { return }
         panel.setFrame(geometry.shownFrame(on: screen), display: true)
+        updateBorder()
     }
 
     private func saveHeight() {
@@ -194,7 +199,22 @@ final class PanelController: NSObject, NSWindowDelegate {
         content.stripAtTop = geometry.resizeEdgeIsTop
         content.tabBarPosition = config.tabBar
         hidesOnFocusLoss = config.hideOnFocusLoss
+        panel.hasShadow = config.shadow
+        borderWidth = config.borderWidth
+        borderColor = config.borderColor
+        updateBorder()
         applyHeight()
+    }
+
+    // The auto colour is the terminal's foreground at low alpha: quiet, yet different from the background in
+    // both dark and light themes.
+    private func updateBorder() {
+        guard let screen = shownScreen else { return }
+        let sides = geometry.borderSides(shown: geometry.shownFrame(on: screen), in: screen.visibleFrame)
+        let color = borderColor.map { NSColor(srgbRed: $0.red, green: $0.green, blue: $0.blue, alpha: $0.alpha) }
+            ?? runtime.foregroundColor.withAlphaComponent(0.3)
+        content.border.update(sides: sides, width: borderWidth, color: color)
+        panel.invalidateShadow()
     }
 
     private func focusTerminal() {
@@ -209,6 +229,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         panel.isOpaque = opaque
         panel.backgroundColor = opaque ? .black : .clear
         refreshBar()
+        updateBorder()
     }
 
     private func refreshBar() {
