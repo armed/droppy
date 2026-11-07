@@ -6,7 +6,7 @@ renderer="${ICON_RENDERER:-$HOME/.claude/plugins/cache/logo-design-skill/logo-de
 src="$root/Resources/icon"
 
 if [ ! -f "$renderer" ]; then
-  echo "render_png.py not found; set ICON_RENDERER to its path" >&2
+  echo "SVG renderer not found at $renderer; set ICON_RENDERER to a script that accepts <svg> --out-dir <dir> --size <n> and writes <name>.png" >&2
   exit 1
 fi
 
