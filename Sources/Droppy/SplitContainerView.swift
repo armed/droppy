@@ -18,6 +18,7 @@ final class DividerView: NSView {
     static let hitThickness: CGFloat = 6
 
     var path: [Bool] = []
+    var color = NSColor(white: 1, alpha: 0.16) { didSet { needsDisplay = true } }
     var axis = SplitAxis.horizontal
     var onDrag: (([Bool], NSPoint) -> Void)?
 
@@ -25,7 +26,7 @@ final class DividerView: NSView {
     override var acceptsFirstResponder: Bool { false }
 
     override func draw(_ dirtyRect: NSRect) {
-        NSColor(white: 1, alpha: 0.16).setFill()
+        color.setFill()
         switch axis {
         case .horizontal:
             NSRect(x: bounds.midX - 0.5, y: 0, width: 1, height: bounds.height).fill()
@@ -50,6 +51,10 @@ final class DividerView: NSView {
 @MainActor
 final class SplitContainerView: NSView {
     var onRatioDrag: (([Bool], CGFloat, CGFloat) -> Void)?
+
+    var dividerColor = NSColor(white: 1, alpha: 0.16) {
+        didSet { for view in dividerViews { view.color = dividerColor } }
+    }
 
     private var tree: SplitNode<TerminalView>?
     private var focused: TerminalView?
@@ -104,6 +109,7 @@ final class SplitContainerView: NSView {
         while dividerViews.count < dividers.count {
             let view = DividerView()
             view.onDrag = { [weak self] path, location in self?.dragged(path, to: location) }
+            view.color = dividerColor
             addSubview(view)
             dividerViews.append(view)
         }

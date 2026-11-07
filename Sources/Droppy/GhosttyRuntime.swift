@@ -68,6 +68,14 @@ final class GhosttyRuntime {
         return CGFloat(min(max(opacity, 0), 1))
     }
 
+    // Nil when unset. The core stores no alpha for it, so only the three channels apply.
+    var splitDividerColor: NSColor? {
+        var color = ghostty_config_color_s()
+        let key = "split-divider-color"
+        guard let config, ghostty_config_get(config, &color, key, UInt(key.utf8.count)) else { return nil }
+        return NSColor(srgbRed: CGFloat(color.r) / 255, green: CGFloat(color.g) / 255, blue: CGFloat(color.b) / 255, alpha: 1)
+    }
+
     var foregroundColor: NSColor {
         var color = ghostty_config_color_s()
         guard let config, ghostty_config_get(config, &color, "foreground", 10) else { return .white }

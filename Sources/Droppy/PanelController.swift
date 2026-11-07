@@ -234,6 +234,7 @@ final class PanelController: NSObject, NSWindowDelegate {
 
     // With a translucent terminal background the window must not paint an opaque backdrop behind it.
     private func refreshAppearance() {
+        applyDividerColor()
         let opaque = runtime.backgroundOpacity >= 1
         panel.isOpaque = opaque
         panel.backgroundColor = opaque ? .black : .clear
@@ -250,7 +251,17 @@ final class PanelController: NSObject, NSWindowDelegate {
         )
     }
 
+    // Every tab is updated, not just the visible one, so a hidden tab is right when it is shown. Unset, the colour
+    // is derived from the terminal background the way Ghostty's own app does.
+    private func applyDividerColor() {
+        let background = runtime.backgroundColor.usingColorSpace(.sRGB) ?? .black
+        let derived = background.blended(withFraction: background.brightnessComponent > 0.5 ? 0.08 : 0.4, of: .black) ?? .black
+        let color = runtime.splitDividerColor ?? derived
+        for tab in tabs.tabs { tab.container.dividerColor = color }
+    }
+
     private func refreshTabs() {
+        applyDividerColor()
         content.display(tabs.selected)
         refreshBar()
         let panelShown = isVisible && panel.isVisible

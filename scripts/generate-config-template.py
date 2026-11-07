@@ -27,7 +27,7 @@ EXCLUDED = [
                         "resize-overlay-position", "resize-overlay-duration", "command-palette-entry",
                         "app-notifications", "desktop-notifications", "notify-on-command-finish",
                         "notify-on-command-finish-action", "notify-on-command-finish-after", "bell-features",
-                        "bell-audio-path", "bell-audio-volume", "progress-style", "split-divider-color",
+                        "bell-audio-path", "bell-audio-volume", "progress-style",
                         "split-preserve-zoom"} or k.startswith("search-")),
     ("would read other files, and Droppy's file is the only configuration source",
         lambda k: k in {"config-file", "config-default-files"}),
