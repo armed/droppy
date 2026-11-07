@@ -12,6 +12,17 @@ private struct Handoff<T>: @unchecked Sendable {
     init(_ value: T) { self.value = value }
 }
 
+enum CloseTabMode {
+    case this, other, right
+}
+
+enum TerminalAction {
+    case newTab
+    case closeTab(CloseTabMode)
+    case gotoTab(Int32)
+    case setTitle(String)
+}
+
 enum GhosttyError: Error {
     case initFailed
     case configFailed
@@ -24,7 +35,20 @@ final class GhosttyRuntime {
     private var config: ghostty_config_t?
     private var observers: [NSObjectProtocol] = []
 
-    var onCloseSurface: ((TerminalView) -> Void)?
+    var onCloseSurface: ((TerminalView, Bool) -> Void)?
+    var onResizeKey: ((Bool) -> Void)?
+    var onAction: ((TerminalAction, TerminalView?) -> Bool)?
+
+    var backgroundColor: NSColor {
+        var color = ghostty_config_color_s()
+        guard let config, ghostty_config_get(config, &color, "background", 10) else { return .black }
+        return NSColor(
+            srgbRed: CGFloat(color.r) / 255,
+            green: CGFloat(color.g) / 255,
+            blue: CGFloat(color.b) / 255,
+            alpha: 1
+        )
+    }
 
     init() throws {
         guard ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) == GHOSTTY_SUCCESS else {
@@ -74,7 +98,7 @@ final class GhosttyRuntime {
             userdata: userdata,
             supports_selection_clipboard: false,
             wakeup_cb: { userdata in GhosttyRuntime.wakeup(userdata) },
-            action_cb: { _, target, action in GhosttyRuntime.action(target: target, action: action) },
+            action_cb: { app, target, action in GhosttyRuntime.action(app: app, target: target, action: action) },
             read_clipboard_cb: { userdata, location, state, mimes, count, list in
                 GhosttyRuntime.readClipboard(userdata, location, state, mimes, count, list)
             },
@@ -84,7 +108,7 @@ final class GhosttyRuntime {
             write_clipboard_cb: { _, location, contents, count, confirm in
                 GhosttyRuntime.writeClipboard(location, contents, count, confirm)
             },
-            close_surface_cb: { userdata, _ in GhosttyRuntime.closeSurface(userdata) }
+            close_surface_cb: { userdata, processAlive in GhosttyRuntime.closeSurface(userdata, processAlive: processAlive) }
         )
     }
 
@@ -100,27 +124,47 @@ final class GhosttyRuntime {
         }
     }
 
-    private nonisolated static func action(target: ghostty_target_s, action: ghostty_action_s) -> Bool {
-        guard target.tag == GHOSTTY_TARGET_SURFACE,
-              let userdata = ghostty_surface_userdata(target.target.surface)
-        else { return false }
-        let viewPointer = Handoff(userdata)
+    private nonisolated static func action(
+        app: ghostty_app_t?,
+        target: ghostty_target_s,
+        action: ghostty_action_s
+    ) -> Bool {
+        guard let app, let runtimePointer = ghostty_app_userdata(app) else { return false }
+        let surfacePointer = target.tag == GHOSTTY_TARGET_SURFACE
+            ? ghostty_surface_userdata(target.target.surface)
+            : nil
+        let pointers = Handoff((runtimePointer, surfacePointer))
 
         return MainActor.assumeIsolated {
-            let view = Unmanaged<TerminalView>.fromOpaque(viewPointer.value).takeUnretainedValue()
+            let runtime = Unmanaged<GhosttyRuntime>.fromOpaque(pointers.value.0).takeUnretainedValue()
+            let view = pointers.value.1.map { Unmanaged<TerminalView>.fromOpaque($0).takeUnretainedValue() }
             switch action.tag {
             case GHOSTTY_ACTION_MOUSE_SHAPE:
-                view.setCursor(action.action.mouse_shape)
-                return true
+                view?.setCursor(action.action.mouse_shape)
+                return view != nil
             case GHOSTTY_ACTION_MOUSE_VISIBILITY:
-                view.setCursorHidden(action.action.mouse_visibility == GHOSTTY_MOUSE_HIDDEN)
-                return true
+                view?.setCursorHidden(action.action.mouse_visibility == GHOSTTY_MOUSE_HIDDEN)
+                return view != nil
             case GHOSTTY_ACTION_CELL_SIZE:
-                view.cellSize = NSSize(
+                view?.cellSize = NSSize(
                     width: CGFloat(action.action.cell_size.width),
                     height: CGFloat(action.action.cell_size.height)
                 )
-                return true
+                return view != nil
+            case GHOSTTY_ACTION_NEW_TAB:
+                return runtime.onAction?(.newTab, view) ?? false
+            case GHOSTTY_ACTION_CLOSE_TAB:
+                let mode: CloseTabMode = switch action.action.close_tab_mode {
+                case GHOSTTY_ACTION_CLOSE_TAB_MODE_OTHER: .other
+                case GHOSTTY_ACTION_CLOSE_TAB_MODE_RIGHT: .right
+                default: .this
+                }
+                return runtime.onAction?(.closeTab(mode), view) ?? false
+            case GHOSTTY_ACTION_GOTO_TAB:
+                return runtime.onAction?(.gotoTab(action.action.goto_tab.rawValue), view) ?? false
+            case GHOSTTY_ACTION_SET_TITLE:
+                guard let title = action.action.set_title.title else { return false }
+                return runtime.onAction?(.setTitle(String(cString: title)), view) ?? false
             default:
                 return false
             }
@@ -129,13 +173,13 @@ final class GhosttyRuntime {
 
     // The surface cannot be freed from inside its own callback, so the close is deferred; the
     // closure holds a strong reference, so a late run can never touch a freed view.
-    private nonisolated static func closeSurface(_ userdata: UnsafeMutableRawPointer?) {
+    private nonisolated static func closeSurface(_ userdata: UnsafeMutableRawPointer?, processAlive: Bool) {
         guard let userdata else { return }
         let viewPointer = Handoff(userdata)
         MainActor.assumeIsolated {
             let view = Unmanaged<TerminalView>.fromOpaque(viewPointer.value).takeUnretainedValue()
             DispatchQueue.main.async {
-                MainActor.assumeIsolated { view.runtime?.onCloseSurface?(view) }
+                MainActor.assumeIsolated { view.runtime?.onCloseSurface?(view, processAlive) }
             }
         }
     }

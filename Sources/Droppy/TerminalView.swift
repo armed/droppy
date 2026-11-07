@@ -8,19 +8,30 @@ final class TerminalView: NSView {
     weak var runtime: GhosttyRuntime?
 
     var cellSize: NSSize = .zero
-    var onResizeKey: ((Bool) -> Void)?
     private var cursor: NSCursor = .arrow
 
     var markedText = NSMutableAttributedString()
     var keyTextAccumulator: [String]?
     private var focused = false
 
-    init(runtime: GhosttyRuntime) {
+    var title = ""
+
+    init(
+        runtime: GhosttyRuntime,
+        inheritFrom source: TerminalView? = nil,
+        context: ghostty_surface_context_e = GHOSTTY_SURFACE_CONTEXT_WINDOW
+    ) {
         self.runtime = runtime
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 400))
 
         guard let app = runtime.app else { return }
-        var config = ghostty_surface_config_new()
+        var config: ghostty_surface_config_s
+        if let sourceSurface = source?.surface {
+            config = ghostty_surface_inherited_config(sourceSurface, context)
+        } else {
+            config = ghostty_surface_config_new()
+            config.context = context
+        }
         config.userdata = Unmanaged.passUnretained(self).toOpaque()
         config.platform_tag = GHOSTTY_PLATFORM_MACOS
         config.platform = ghostty_platform_u(macos: ghostty_platform_macos_s(
@@ -34,6 +45,11 @@ final class TerminalView: NSView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
+    }
+
+    var needsConfirmClose: Bool {
+        guard let surface else { return false }
+        return ghostty_surface_needs_confirm_quit(surface)
     }
 
     func close() {
@@ -340,7 +356,7 @@ final class TerminalView: NSView {
 
     private func handleResizeKey(_ event: NSEvent) -> Bool {
         guard let grow = Self.resizeDirection(event) else { return false }
-        onResizeKey?(grow)
+        runtime?.onResizeKey?(grow)
         return true
     }
 

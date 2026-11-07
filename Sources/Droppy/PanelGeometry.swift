@@ -8,6 +8,7 @@ struct PanelGeometry {
     var edge: PanelEdge = .top
     var widthFraction: CGFloat = 1.0
     var heightFraction: CGFloat = 0.4
+    var tabBarPosition: TabBarPosition = .bottom
 
     func shownFrame(on screen: NSScreen) -> NSRect {
         let area = screen.visibleFrame

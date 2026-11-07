@@ -41,9 +41,13 @@ extension NSEvent {
             .subtracting([.control, .command])
             .ghosttyMods
         event.unshifted_codepoint = 0
-        if type == .keyDown || type == .keyUp,
-           let scalar = characters(byApplyingModifiers: [])?.unicodeScalars.first {
-            event.unshifted_codepoint = scalar.value
+        if type == .keyDown || type == .keyUp {
+            // Non-Latin layouts map command+key to the Latin letter, but the bare key to their own script;
+            // Ghostty's unicode shortcuts (cmd+t, cmd+shift+d, cmd+[) need the Latin one.
+            let modifier: NSEvent.ModifierFlags = modifierFlags.contains(.command) ? .command : []
+            if let scalar = characters(byApplyingModifiers: modifier)?.unicodeScalars.first {
+                event.unshifted_codepoint = scalar.value
+            }
         }
         return event
     }

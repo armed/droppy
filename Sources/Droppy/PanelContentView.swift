@@ -27,12 +27,27 @@ final class ResizeStrip: NSView {
     }
 }
 
+@MainActor
 final class PanelContentView: NSView {
     let strip = ResizeStrip()
+    let tabBar = TabBarView(frame: .zero)
+
+    var stripAtTop = false { didSet { relayout() } }
+    var tabBarPosition = TabBarPosition.bottom { didSet { relayout() } }
+    var tabBarVisible = false {
+        didSet {
+            tabBar.isHidden = !tabBarVisible
+            relayout()
+        }
+    }
+
+    private var shown: NSView?
 
     init() {
         super.init(frame: .zero)
         strip.wantsLayer = true
+        tabBar.isHidden = true
+        addSubview(tabBar)
         addSubview(strip)
     }
 
@@ -40,15 +55,37 @@ final class PanelContentView: NSView {
         fatalError("init(coder:) is not supported")
     }
 
-    func configure(stripAtTop: Bool) {
-        strip.autoresizingMask = stripAtTop ? [.width, .minYMargin] : [.width, .maxYMargin]
-        let y = stripAtTop ? bounds.height - ResizeStrip.thickness : 0
-        strip.frame = NSRect(x: 0, y: y, width: bounds.width, height: ResizeStrip.thickness)
+    func display(_ tab: Tab?) {
+        let view = tab?.contentView
+        guard shown !== view else { return }
+        shown?.removeFromSuperview()
+        shown = view
+        if let view {
+            addSubview(view, positioned: .below, relativeTo: tabBar)
+        }
+        relayout()
     }
 
-    func attach(_ terminal: NSView) {
-        terminal.frame = bounds
-        terminal.autoresizingMask = [.width, .height]
-        addSubview(terminal, positioned: .below, relativeTo: strip)
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        relayout()
+    }
+
+    func relayout() {
+        let width = bounds.width
+        let height = bounds.height
+        let barHeight = tabBarVisible ? TabBarView.height : 0
+        var area = bounds
+        switch tabBarPosition {
+        case .bottom:
+            tabBar.frame = NSRect(x: 0, y: 0, width: width, height: barHeight)
+            area = NSRect(x: 0, y: barHeight, width: width, height: height - barHeight)
+        case .top:
+            tabBar.frame = NSRect(x: 0, y: height - barHeight, width: width, height: barHeight)
+            area = NSRect(x: 0, y: 0, width: width, height: height - barHeight)
+        }
+        shown?.frame = area
+        let stripY = stripAtTop ? height - ResizeStrip.thickness : 0
+        strip.frame = NSRect(x: 0, y: stripY, width: width, height: ResizeStrip.thickness)
     }
 }
