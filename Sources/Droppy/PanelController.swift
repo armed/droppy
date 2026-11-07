@@ -5,13 +5,19 @@ final class PanelController: NSObject, NSWindowDelegate {
     var geometry = PanelGeometry()
     var animationDuration: TimeInterval = 0.2
     var hidesOnFocusLoss = true
+    var onOpenConfig: (() -> Void)?
 
-    private static let heightKey = "panelHeightFraction"
+    // The height the user adjusted at runtime is kept next to the file's height it was based on, so editing
+    // the file's height wins over it without the runtime value ever being written into the file.
+    private static let runtimeHeightKey = "panelRuntimeHeight"
+    private static let baseHeightKey = "panelRuntimeHeightBase"
+    private static let legacyHeightKey = "panelHeightFraction"
 
     private let runtime: GhosttyRuntime
     private let panel = DropPanel()
     private let content = PanelContentView()
     private let tabs: TabManager
+    private var configHeight: CGFloat = 0.4
     private var previousApp: NSRunningApplication?
     private var animationToken = 0
     private var animationsInFlight = 0
@@ -23,12 +29,6 @@ final class PanelController: NSObject, NSWindowDelegate {
         self.runtime = runtime
         tabs = TabManager(runtime: runtime)
         super.init()
-        if let stored = UserDefaults.standard.object(forKey: Self.heightKey) as? Double,
-           PanelGeometry.heightRange.contains(CGFloat(stored)) {
-            geometry.heightFraction = CGFloat(stored)
-        }
-        content.stripAtTop = geometry.resizeEdgeIsTop
-        content.tabBarPosition = geometry.tabBarPosition
         content.tabBar.onSelect = { [weak self] in self?.tabs.select(at: $0) }
         content.tabBar.onClose = { [weak self] index in
             guard let self, self.tabs.tabs.indices.contains(index) else { return }
@@ -158,10 +158,39 @@ final class PanelController: NSObject, NSWindowDelegate {
     }
 
     private func saveHeight() {
-        UserDefaults.standard.set(Double(geometry.heightFraction), forKey: Self.heightKey)
+        let defaults = UserDefaults.standard
+        defaults.set(Double(geometry.heightFraction), forKey: Self.runtimeHeightKey)
+        defaults.set(Double(configHeight), forKey: Self.baseHeightKey)
     }
 
-
+    func apply(_ config: Config) {
+        let defaults = UserDefaults.standard
+        if let legacy = defaults.object(forKey: Self.legacyHeightKey) as? Double {
+            if defaults.object(forKey: Self.runtimeHeightKey) == nil {
+                defaults.set(legacy, forKey: Self.runtimeHeightKey)
+                defaults.set(Double(config.height), forKey: Self.baseHeightKey)
+            }
+            defaults.removeObject(forKey: Self.legacyHeightKey)
+        }
+        configHeight = config.height
+        if let runtime = defaults.object(forKey: Self.runtimeHeightKey) as? Double,
+           let base = defaults.object(forKey: Self.baseHeightKey) as? Double,
+           abs(base - Double(config.height)) < 1e-6,
+           PanelGeometry.heightRange.contains(CGFloat(runtime)) {
+            geometry.heightFraction = CGFloat(runtime)
+        } else {
+            defaults.removeObject(forKey: Self.runtimeHeightKey)
+            defaults.removeObject(forKey: Self.baseHeightKey)
+            geometry.heightFraction = config.height
+        }
+        geometry.edge = config.position
+        geometry.alignment = config.alignment
+        geometry.widthFraction = config.width
+        content.stripAtTop = geometry.resizeEdgeIsTop
+        content.tabBarPosition = config.tabBar
+        hidesOnFocusLoss = config.hideOnFocusLoss
+        applyHeight()
+    }
 
     private func focusTerminal() {
         guard let view = tabs.selected?.focusedView else { return }
@@ -231,6 +260,8 @@ final class PanelController: NSObject, NSWindowDelegate {
                 self.tab(for: view)?.toggleZoom()
                 self.refreshTabs()
             }
+        case .openConfig:
+            DispatchQueue.main.async { self.onOpenConfig?() }
         case .quit:
             // terminate waits in a nested loop for the confirmation, which would starve the main dispatch queue.
             RunLoop.main.perform { MainActor.assumeIsolated { NSApp.terminate(nil) } }

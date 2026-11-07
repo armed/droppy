@@ -27,6 +27,7 @@ enum TerminalAction {
     case equalizeSplits
     case toggleSplitZoom
     case quit
+    case openConfig
 }
 
 enum GhosttyError: Error {
@@ -203,6 +204,8 @@ final class GhosttyRuntime {
                 return runtime.onAction?(.equalizeSplits, view) ?? false
             case GHOSTTY_ACTION_TOGGLE_SPLIT_ZOOM:
                 return runtime.onAction?(.toggleSplitZoom, view) ?? false
+            case GHOSTTY_ACTION_OPEN_CONFIG:
+                return runtime.onAction?(.openConfig, view) ?? false
             case GHOSTTY_ACTION_QUIT:
                 return runtime.onAction?(.quit, view) ?? false
             default:
