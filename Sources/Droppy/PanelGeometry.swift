@@ -4,14 +4,6 @@ enum PanelEdge {
     case top, bottom, left, right, center
 }
 
-struct PanelSides: OptionSet {
-    let rawValue: Int
-    static let top = PanelSides(rawValue: 1)
-    static let bottom = PanelSides(rawValue: 2)
-    static let left = PanelSides(rawValue: 4)
-    static let right = PanelSides(rawValue: 8)
-}
-
 struct PanelGeometry {
     var edge: PanelEdge = .top
     var alignment: PanelAlignment = .center
@@ -77,18 +69,6 @@ struct PanelGeometry {
         case .center: break
         }
         return frame
-    }
-
-    // A side that sits flush with the usable area needs no line; computed from the shown frame, not the animated
-    // one, so the lines stay put while the panel slides.
-    func borderSides(shown: NSRect, in area: NSRect) -> PanelSides {
-        var sides: PanelSides = []
-        let tolerance: CGFloat = 0.5
-        if shown.maxY < area.maxY - tolerance { sides.insert(.top) }
-        if shown.minY > area.minY + tolerance { sides.insert(.bottom) }
-        if shown.minX > area.minX + tolerance { sides.insert(.left) }
-        if shown.maxX < area.maxX - tolerance { sides.insert(.right) }
-        return sides
     }
 
     static let heightRange: ClosedRange<CGFloat> = 0.15...1.0

@@ -5,6 +5,15 @@ enum PanelAlignment {
     case start, center, end
 }
 
+struct PanelSides: OptionSet {
+    let rawValue: Int
+    static let top = PanelSides(rawValue: 1)
+    static let bottom = PanelSides(rawValue: 2)
+    static let left = PanelSides(rawValue: 4)
+    static let right = PanelSides(rawValue: 8)
+    static let all: PanelSides = [.top, .bottom, .left, .right]
+}
+
 struct RGBA: Equatable {
     var red: Double
     var green: Double
@@ -21,6 +30,7 @@ struct Config: Equatable {
     var tabBar = TabBarPosition.bottom
     var hideOnFocusLoss = true
     var borderWidth: CGFloat = 1
+    var borderSides = PanelSides.all
     // nil derives the colour from the terminal theme.
     var borderColor: RGBA?
     var shadow = true
@@ -69,8 +79,11 @@ enum ConfigParser {
     # Hide the panel when another window takes focus.
     # hide-on-focus-loss = true
 
-    # A line along the panel's free sides, in points; 0 turns it off.
+    # Line width in points; 0 turns the border off.
     # border-width = 1
+
+    # Which sides carry the line: all, none, or a comma-separated list of top, bottom, left, right.
+    # border-sides = all
 
     # auto derives a quiet colour from the terminal's own; or #rrggbb / #rrggbbaa.
     # border-color = auto
@@ -95,7 +108,7 @@ enum ConfigParser {
     }
 
     static let ownedKeys: Set<String> = ["hotkey", "position", "alignment", "width", "height", "tab-bar", "hide-on-focus-loss",
-                                       "border-width", "border-color", "shadow", "animation-duration",
+                                       "border-width", "border-sides", "border-color", "shadow", "animation-duration",
                                        "auto-equalize-splits"]
 
     // Ghostty resolves relative paths against the file it loads, which for the forwarded copy would be the
@@ -169,6 +182,9 @@ enum ConfigParser {
         case "border-width":
             guard let width = Double(value), width.isFinite, (0...20).contains(width) else { return "invalid border-width" }
             config.borderWidth = CGFloat(width)
+        case "border-sides":
+            guard let sides = parseSides(value) else { return "invalid border-sides" }
+            config.borderSides = sides
         case "border-color":
             if value.lowercased() == "auto" {
                 config.borderColor = nil
@@ -192,6 +208,21 @@ enum ConfigParser {
             return nil
         }
         return nil
+    }
+
+    static func parseSides(_ value: String) -> PanelSides? {
+        switch value.lowercased() {
+        case "all": return .all
+        case "none": return []
+        default: break
+        }
+        let names: [String: PanelSides] = ["top": .top, "bottom": .bottom, "left": .left, "right": .right]
+        var sides: PanelSides = []
+        for part in value.lowercased().split(separator: ",", omittingEmptySubsequences: false) {
+            guard let side = names[part.trimmingCharacters(in: .whitespaces)] else { return nil }
+            sides.insert(side)
+        }
+        return sides
     }
 
     static func parseColor(_ value: String) -> RGBA? {
