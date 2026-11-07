@@ -43,6 +43,11 @@ final class PanelContentView: NSView {
 
     private var shown: NSView?
 
+    override var acceptsFirstResponder: Bool { true }
+
+    // Swallows keys while the panel slides out, so they are neither typed into the shell nor beep.
+    override func keyDown(with event: NSEvent) {}
+
     init() {
         super.init(frame: .zero)
         strip.wantsLayer = true

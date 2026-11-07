@@ -17,11 +17,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         panelController = PanelController(runtime: runtime!)
 
+        setUpMainMenu()
         setUpStatusItem()
 
         let hotKey = GlobalHotKey { [weak self] in self?.panelController?.toggle() }
         if !hotKey.register(.default) { log.error("hotkey registration failed") }
         self.hotKey = hotKey
+    }
+
+    // Cmd+Q is deliberately not bound: an accidental press would kill every shell.
+    private func setUpMainMenu() {
+        let appMenu = NSMenu()
+        appMenu.addItem(withTitle: "Quit Droppy", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+        let appItem = NSMenuItem()
+        appItem.submenu = appMenu
+        let mainMenu = NSMenu()
+        mainMenu.addItem(appItem)
+        NSApp.mainMenu = mainMenu
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        panelController?.show()
+        return false
     }
 
     private func setUpStatusItem() {

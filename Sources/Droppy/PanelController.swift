@@ -87,15 +87,21 @@ final class PanelController: NSObject, NSWindowDelegate {
         }
     }
 
-    func hide() {
+    func hide(userInitiated: Bool = true) {
         guard isVisible else { return }
         isVisible = false
         animationToken += 1
         let token = animationToken
 
-        if let previousApp {
-            self.previousApp = nil
-            if !previousApp.isTerminated { previousApp.activate(options: []) }
+        // Keys typed while the panel slides out must not reach the shell.
+        panel.makeFirstResponder(content)
+
+        // Activated before the slide so the previous app is usable at once. It is only cleared in the completion
+        // because a show that interrupts this hide still needs it.
+        var activatedPreviousApp = false
+        if userInitiated, let previousApp, !previousApp.isTerminated {
+            previousApp.activate(options: [])
+            activatedPreviousApp = true
         }
 
         let screen = panel.screen ?? screenUnderMouse()
@@ -104,8 +110,11 @@ final class PanelController: NSObject, NSWindowDelegate {
 
         animate(to: hidden, alpha: geometry.fadesInPlace ? 0 : 1) { [weak self] in
             guard let self, !self.isVisible, token == self.animationToken else { return }
-            self.panel.orderOut(nil)
             self.refreshTabs()
+            self.panel.orderOut(nil)
+            self.previousApp = nil
+            // Otherwise Droppy would stay frontmost with nothing on screen.
+            if userInitiated && !activatedPreviousApp { NSApp.hide(nil) }
         }
     }
 
@@ -309,7 +318,7 @@ final class PanelController: NSObject, NSWindowDelegate {
 
     func windowDidResignKey(_ notification: Notification) {
         guard isVisible, hidesOnFocusLoss, !isResizing, panel.attachedSheet == nil else { return }
-        if NSApp.isActive { previousApp = nil }
-        hide()
+        previousApp = nil
+        hide(userInitiated: false)
     }
 }
