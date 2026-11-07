@@ -24,6 +24,7 @@ struct Config: Equatable {
     // nil derives the colour from the terminal theme.
     var borderColor: RGBA?
     var shadow = true
+    var animationDuration: TimeInterval = 0.2
 }
 
 struct ConfigIssue: Equatable {
@@ -75,6 +76,9 @@ enum ConfigParser {
     # A drop shadow around the panel.
     # shadow = true
 
+    # Seconds the panel takes to slide in and out, 0 to 2; 0 shows and hides it instantly.
+    # animation-duration = 0.2
+
 
     """
 
@@ -86,7 +90,7 @@ enum ConfigParser {
     }
 
     static let ownedKeys: Set<String> = ["hotkey", "position", "alignment", "width", "height", "tab-bar", "hide-on-focus-loss",
-                                       "border-width", "border-color", "shadow"]
+                                       "border-width", "border-color", "shadow", "animation-duration"]
 
     // Ghostty resolves relative paths against the file it loads, which for the forwarded copy would be the
     // temp directory, so the path-valued keys are made absolute against the real config directory.
@@ -169,6 +173,9 @@ enum ConfigParser {
         case "shadow":
             guard let flag = ["true": true, "false": false][value.lowercased()] else { return "expected true or false" }
             config.shadow = flag
+        case "animation-duration":
+            guard let seconds = Double(value), seconds.isFinite, (0...2).contains(seconds) else { return "invalid animation-duration" }
+            config.animationDuration = seconds
         case "hide-on-focus-loss":
             guard let flag = ["true": true, "false": false][value.lowercased()] else { return "expected true or false" }
             config.hideOnFocusLoss = flag

@@ -128,6 +128,13 @@ final class PanelController: NSObject, NSWindowDelegate {
     }
 
     private func animate(to frame: NSRect, alpha: CGFloat, completion: @escaping @MainActor () -> Void) {
+        // A zero-length animation group is not guaranteed to run its completion handler, so that case is direct.
+        guard animationDuration > 0 else {
+            panel.setFrame(frame, display: true)
+            panel.alphaValue = alpha
+            completion()
+            return
+        }
         animationsInFlight += 1
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = animationDuration
@@ -199,6 +206,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         content.stripAtTop = geometry.resizeEdgeIsTop
         content.tabBarPosition = config.tabBar
         hidesOnFocusLoss = config.hideOnFocusLoss
+        animationDuration = config.animationDuration
         panel.hasShadow = config.shadow
         borderWidth = config.borderWidth
         borderColor = config.borderColor
