@@ -1,0 +1,240 @@
+import AppKit
+import GhosttyKit
+import os
+
+let log = Logger(subsystem: "dev.droppy.Droppy", category: "app")
+
+// Only wakeup runs off the main thread; every other callback fires synchronously inside a call
+// into libghostty, all of which happen on main. This wrapper only moves pointers into
+// assumeIsolated without tripping the sending checker.
+private struct Handoff<T>: @unchecked Sendable {
+    let value: T
+    init(_ value: T) { self.value = value }
+}
+
+enum GhosttyError: Error {
+    case initFailed
+    case configFailed
+    case appFailed
+}
+
+@MainActor
+final class GhosttyRuntime {
+    private(set) var app: ghostty_app_t?
+    private var config: ghostty_config_t?
+    private var observers: [NSObjectProtocol] = []
+
+    var onCloseSurface: ((TerminalView) -> Void)?
+
+    init() throws {
+        guard ghostty_init(UInt(CommandLine.argc), CommandLine.unsafeArgv) == GHOSTTY_SUCCESS else {
+            throw GhosttyError.initFailed
+        }
+        guard let config = ghostty_config_new() else { throw GhosttyError.configFailed }
+        ghostty_config_finalize(config)
+        self.config = config
+
+        var runtime = Self.runtimeConfig(userdata: Unmanaged.passUnretained(self).toOpaque())
+        guard let app = ghostty_app_new(&runtime, config) else { throw GhosttyError.appFailed }
+        self.app = app
+        ghostty_app_set_focus(app, NSApp.isActive)
+
+        let center = NotificationCenter.default
+        observers.append(center.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.setFocus(true) }
+        })
+        observers.append(center.addObserver(
+            forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.setFocus(false) }
+        })
+        observers.append(center.addObserver(
+            forName: NSTextInputContext.keyboardSelectionDidChangeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                if let app = self?.app { ghostty_app_keyboard_changed(app) }
+            }
+        })
+    }
+
+    private func setFocus(_ focused: Bool) {
+        if let app { ghostty_app_set_focus(app, focused) }
+    }
+
+    func tick() {
+        if let app { ghostty_app_tick(app) }
+    }
+
+    // Closures formed in a main-actor context trap on entry when called from another thread,
+    // and wakeup is invoked from Ghostty's IO and renderer threads.
+    private nonisolated static func runtimeConfig(userdata: UnsafeMutableRawPointer) -> ghostty_runtime_config_s {
+        ghostty_runtime_config_s(
+            userdata: userdata,
+            supports_selection_clipboard: false,
+            wakeup_cb: { userdata in GhosttyRuntime.wakeup(userdata) },
+            action_cb: { _, target, action in GhosttyRuntime.action(target: target, action: action) },
+            read_clipboard_cb: { userdata, location, state, mimes, count, list in
+                GhosttyRuntime.readClipboard(userdata, location, state, mimes, count, list)
+            },
+            confirm_read_clipboard_cb: { userdata, confirm, state, request in
+                GhosttyRuntime.confirmReadClipboard(userdata, confirm, state, request)
+            },
+            write_clipboard_cb: { _, location, contents, count, confirm in
+                GhosttyRuntime.writeClipboard(location, contents, count, confirm)
+            },
+            close_surface_cb: { userdata, _ in GhosttyRuntime.closeSurface(userdata) }
+        )
+    }
+
+    // The runtime is owned by the app delegate for the whole process, so this pointer never dangles.
+    private nonisolated static func wakeup(_ userdata: UnsafeMutableRawPointer?) {
+        guard let userdata else { return }
+        let address = UInt(bitPattern: userdata)
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                guard let pointer = UnsafeRawPointer(bitPattern: address) else { return }
+                Unmanaged<GhosttyRuntime>.fromOpaque(pointer).takeUnretainedValue().tick()
+            }
+        }
+    }
+
+    private nonisolated static func action(target: ghostty_target_s, action: ghostty_action_s) -> Bool {
+        guard target.tag == GHOSTTY_TARGET_SURFACE,
+              let userdata = ghostty_surface_userdata(target.target.surface)
+        else { return false }
+        let viewPointer = Handoff(userdata)
+
+        return MainActor.assumeIsolated {
+            let view = Unmanaged<TerminalView>.fromOpaque(viewPointer.value).takeUnretainedValue()
+            switch action.tag {
+            case GHOSTTY_ACTION_MOUSE_SHAPE:
+                view.setCursor(action.action.mouse_shape)
+                return true
+            case GHOSTTY_ACTION_MOUSE_VISIBILITY:
+                view.setCursorHidden(action.action.mouse_visibility == GHOSTTY_MOUSE_HIDDEN)
+                return true
+            case GHOSTTY_ACTION_CELL_SIZE:
+                view.cellSize = NSSize(
+                    width: CGFloat(action.action.cell_size.width),
+                    height: CGFloat(action.action.cell_size.height)
+                )
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
+    // The surface cannot be freed from inside its own callback, so the close is deferred; the
+    // closure holds a strong reference, so a late run can never touch a freed view.
+    private nonisolated static func closeSurface(_ userdata: UnsafeMutableRawPointer?) {
+        guard let userdata else { return }
+        let viewPointer = Handoff(userdata)
+        MainActor.assumeIsolated {
+            let view = Unmanaged<TerminalView>.fromOpaque(viewPointer.value).takeUnretainedValue()
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { view.runtime?.onCloseSurface?(view) }
+            }
+        }
+    }
+
+    private nonisolated static func readClipboard(
+        _ userdata: UnsafeMutableRawPointer?,
+        _ location: ghostty_clipboard_e,
+        _ state: UnsafeMutableRawPointer?,
+        _ mimes: UnsafePointer<UnsafePointer<CChar>?>?,
+        _ count: Int,
+        _ list: Bool
+    ) -> ghostty_clipboard_read_result_e {
+        guard let userdata, let state, location == GHOSTTY_CLIPBOARD_STANDARD else {
+            return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED
+        }
+        let requestsText = list || (0..<count).contains { index in
+            mimes?[index].map { String(cString: $0) == "text/plain" } ?? false
+        }
+        guard requestsText else { return GHOSTTY_CLIPBOARD_READ_UNAVAILABLE }
+
+        let viewPointer = Handoff(userdata), statePointer = Handoff(state)
+        return MainActor.assumeIsolated {
+            let view = Unmanaged<TerminalView>.fromOpaque(viewPointer.value).takeUnretainedValue()
+            guard let surface = view.surface else { return GHOSTTY_CLIPBOARD_READ_UNSUPPORTED }
+            guard let text = NSPasteboard.general.string(forType: .string) else {
+                return GHOSTTY_CLIPBOARD_READ_UNAVAILABLE
+            }
+            complete(surface: surface, state: statePointer.value, text: text)
+            return GHOSTTY_CLIPBOARD_READ_STARTED
+        }
+    }
+
+    private static func complete(surface: ghostty_surface_t, state: UnsafeMutableRawPointer, text: String) {
+        let length = text.utf8.count
+        text.withCString { data in
+            "text/plain".withCString { mime in
+                var content = ghostty_clipboard_content_s(mime: mime, data: data, len: length)
+                var available: UnsafePointer<CChar>? = mime
+                withUnsafePointer(to: &content) { contentPointer in
+                    withUnsafePointer(to: &available) { availablePointer in
+                        var request = ghostty_clipboard_complete_s(
+                            contents: contentPointer,
+                            contents_len: 1,
+                            available: availablePointer,
+                            available_len: 1,
+                            confirmed: false,
+                            remember: false
+                        )
+                        ghostty_surface_complete_clipboard_request(surface, &request, state)
+                    }
+                }
+            }
+        }
+    }
+
+    private nonisolated static func confirmReadClipboard(
+        _ userdata: UnsafeMutableRawPointer?,
+        _ confirm: UnsafePointer<ghostty_clipboard_confirm_s>?,
+        _ state: UnsafeMutableRawPointer?,
+        _ request: ghostty_clipboard_request_e
+    ) {
+        guard let userdata, let state else { return }
+        let viewPointer = Handoff(userdata), statePointer = Handoff(state), confirmPointer = Handoff(confirm)
+        MainActor.assumeIsolated {
+            let view = Unmanaged<TerminalView>.fromOpaque(viewPointer.value).takeUnretainedValue()
+            guard let surface = view.surface else { return }
+            guard request == GHOSTTY_CLIPBOARD_REQUEST_PASTE, let pending = confirmPointer.value?.pointee else {
+                ghostty_surface_deny_clipboard_request(surface, statePointer.value)
+                return
+            }
+            var approved = ghostty_clipboard_complete_s(
+                contents: pending.contents,
+                contents_len: pending.contents_len,
+                available: pending.available,
+                available_len: pending.available_len,
+                confirmed: true,
+                remember: false
+            )
+            ghostty_surface_complete_clipboard_request(surface, &approved, statePointer.value)
+        }
+    }
+
+    private nonisolated static func writeClipboard(
+        _ location: ghostty_clipboard_e,
+        _ contents: UnsafePointer<ghostty_clipboard_content_s>?,
+        _ count: Int,
+        _ confirm: Bool
+    ) {
+        guard location == GHOSTTY_CLIPBOARD_STANDARD, !confirm, let contents else { return }
+        for index in 0..<count {
+            let item = contents[index]
+            guard let mime = item.mime, String(cString: mime) == "text/plain", let data = item.data else { continue }
+            let text = String(decoding: UnsafeBufferPointer(start: UnsafeRawPointer(data).assumingMemoryBound(to: UInt8.self), count: item.len), as: UTF8.self)
+            DispatchQueue.main.async {
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.setString(text, forType: .string)
+            }
+            return
+        }
+    }
+}
