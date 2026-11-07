@@ -20,6 +20,7 @@ cp "$bin" "$app/Contents/MacOS/Droppy"
 cp -R Vendor/share/terminfo "$app/Contents/Resources/"
 cp -R Vendor/share/ghostty "$app/Contents/Resources/"
 cp Vendor/share/droppy/config.template "$app/Contents/Resources/"
+cp Resources/AppIcon.icns Resources/TrayIcon.png "Resources/TrayIcon@2x.png" "$app/Contents/Resources/"
 
 cat > "$app/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -27,6 +28,7 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 <plist version="1.0">
 <dict>
   <key>CFBundleExecutable</key><string>Droppy</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleIdentifier</key><string>dev.droppy.Droppy</string>
   <key>CFBundleName</key><string>Droppy</string>
   <key>CFBundlePackageType</key><string>APPL</string>

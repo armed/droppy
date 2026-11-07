@@ -104,9 +104,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
+    private static func trayImage() -> NSImage? {
+        guard let url1x = Bundle.main.url(forResource: "TrayIcon", withExtension: "png"),
+              let url2x = Bundle.main.url(forResource: "TrayIcon@2x", withExtension: "png"),
+              let rep1x = NSBitmapImageRep(data: (try? Data(contentsOf: url1x)) ?? Data()),
+              let rep2x = NSBitmapImageRep(data: (try? Data(contentsOf: url2x)) ?? Data()) else { return nil }
+        let image = NSImage(size: NSSize(width: 18, height: 18))
+        // Both reps carry the same point size so AppKit picks by backing scale instead of treating them as 1x/2x pixels.
+        for rep in [rep1x, rep2x] { rep.size = image.size; image.addRepresentation(rep) }
+        image.isTemplate = true
+        image.accessibilityDescription = "Droppy"
+        return image
+    }
+
     private func setUpStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "terminal", accessibilityDescription: "Droppy")
+        item.button?.image = Self.trayImage() ?? NSImage(systemSymbolName: "terminal", accessibilityDescription: "Droppy")
         statusItem = item
         rebuildStatusMenu()
     }
