@@ -228,6 +228,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     private func focusTerminal() {
         guard let view = tabs.selected?.focusedView else { return }
         panel.makeKeyAndOrderFront(nil)
+        if view.isSearchFieldFocused { return }
         panel.makeFirstResponder(view)
     }
 

@@ -12,6 +12,7 @@ A native macOS drop-down terminal built on libghostty, the terminal core of Ghos
 - Splits, with optional automatic equalizing.
 - Position (top, bottom, left, right, center), alignment and size of the panel.
 - Height changes with the mouse (drag the panel's inner edge) and with cmd+j / cmd+k.
+- Scrollback search, per pane.
 - Plain-text config with live reload.
 - All Ghostty options and themes.
 
@@ -88,13 +89,16 @@ These are Ghostty's default macOS bindings, as far as Droppy acts on them; rebin
 | cmd+j, cmd+k | Increase, decrease the panel height |
 | cmd+c, cmd+v | Copy, paste |
 | cmd+=, cmd+-, cmd+0 | Font size larger, smaller, reset |
+| cmd+f | Search the scrollback in the focused pane |
+| return, cmd+g | Next match (return only in the search field) |
+| shift+return, cmd+shift+g | Previous match (shift+return only in the search field) |
+| esc | Close the search and return to the terminal |
 | cmd+, | Open config |
 | cmd+shift+, | Reload config |
 | cmd+q | Quit |
 
 ## Known limitations
 
-- No scrollback search.
 - No notifications and no bell.
 - Tabs cannot be reordered by dragging.
 - Links with custom URL schemes are not opened.

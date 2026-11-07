@@ -102,6 +102,17 @@ final class SplitContainerView: NSView {
             let dim = dims[ObjectIdentifier(pane.leaf)]
             dim?.frame = pane.leaf.frame
             dim?.isHidden = isZoomedAway || leaves.count == 1 || pane.leaf === focused
+            if let bar = pane.leaf.searchBar {
+                if bar.superview !== self { addSubview(bar) }
+                bar.isHidden = isZoomedAway
+                let frame = pane.leaf.frame
+                bar.frame = NSRect(
+                    x: max(frame.minX, frame.maxX - SearchBarView.size.width - SearchBarView.margin),
+                    y: max(frame.minY, frame.maxY - SearchBarView.size.height - SearchBarView.margin),
+                    width: min(SearchBarView.size.width, frame.width),
+                    height: SearchBarView.size.height
+                )
+            }
         }
 
         dividers = zoomed == nil ? layout.dividers : []

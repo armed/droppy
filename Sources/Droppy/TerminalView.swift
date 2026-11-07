@@ -17,6 +17,10 @@ final class TerminalView: NSView {
 
     var title = ""
 
+    var searchBar: SearchBarView?
+    var searchDebounce: DispatchWorkItem?
+    var searchAutoSelected = false
+
     init(
         runtime: GhosttyRuntime,
         inheritFrom source: TerminalView? = nil,
@@ -56,6 +60,7 @@ final class TerminalView: NSView {
     func close() {
         willClose?()
         willClose = nil
+        endSearch()
         guard let surface else { return }
         self.surface = nil
         ghostty_surface_free(surface)
@@ -263,7 +268,12 @@ final class TerminalView: NSView {
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        guard event.type == .keyDown, focused, let surface else { return false }
+        guard event.type == .keyDown, focused else { return false }
+        return performBindingKey(event)
+    }
+
+    func performBindingKey(_ event: NSEvent) -> Bool {
+        guard let surface else { return false }
         if handleResizeKey(event) { return true }
         var ghosttyEvent = event.ghosttyKeyEvent(GHOSTTY_ACTION_PRESS)
         let isBinding = (event.characters ?? "").withCString { text in
@@ -446,7 +456,7 @@ final class TerminalView: NSView {
     @objc func copy(_ sender: Any?) { perform("copy_to_clipboard") }
     @objc func paste(_ sender: Any?) { perform("paste_from_clipboard") }
 
-    private func perform(_ action: String) {
+    func perform(_ action: String) {
         guard let surface else { return }
         _ = ghostty_surface_binding_action(surface, action, UInt(action.utf8.count))
     }

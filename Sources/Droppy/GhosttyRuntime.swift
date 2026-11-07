@@ -282,6 +282,23 @@ final class GhosttyRuntime {
                 return runtime.onAction?(.equalizeSplits, view) ?? false
             case GHOSTTY_ACTION_TOGGLE_SPLIT_ZOOM:
                 return runtime.onAction?(.toggleSplitZoom, view) ?? false
+            case GHOSTTY_ACTION_START_SEARCH:
+                guard let view else { return false }
+                let needle = action.action.start_search.needle.map { String(cString: $0) } ?? ""
+                DispatchQueue.main.async { view.beginSearch(needle: needle) }
+                return true
+            case GHOSTTY_ACTION_END_SEARCH:
+                guard let view else { return false }
+                DispatchQueue.main.async { view.endSearch() }
+                return true
+            case GHOSTTY_ACTION_SEARCH_TOTAL:
+                let total = action.action.search_total.total
+                view?.searchTotalChanged(total >= 0 ? total : nil)
+                return view != nil
+            case GHOSTTY_ACTION_SEARCH_SELECTED:
+                let selected = action.action.search_selected.selected
+                view?.searchBar?.selected = selected >= 0 ? selected : nil
+                return view != nil
             case GHOSTTY_ACTION_OPEN_URL:
                 return LinkOpener.open(action.action.open_url)
             case GHOSTTY_ACTION_RELOAD_CONFIG:
