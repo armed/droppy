@@ -1,3 +1,5 @@
+<p align="center"><img src="Resources/banner.svg" alt="Droppy" width="100%"></p>
+
 # Droppy
 
 A native macOS drop-down terminal built on libghostty, the terminal core of Ghostty. A global hotkey slides the panel in from a screen edge and out again.
