@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var runtime: GhosttyRuntime?
     private var panelController: PanelController?
     private var hotKey: GlobalHotKey?
+    private var quitPending = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         do {
@@ -25,15 +26,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.hotKey = hotKey
     }
 
-    // Cmd+Q is deliberately not bound: an accidental press would kill every shell.
     private func setUpMainMenu() {
         let appMenu = NSMenu()
-        appMenu.addItem(withTitle: "Quit Droppy", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+        appMenu.addItem(withTitle: "Quit Droppy", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let appItem = NSMenuItem()
         appItem.submenu = appMenu
         let mainMenu = NSMenu()
         mainMenu.addItem(appItem)
         NSApp.mainMenu = mainMenu
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let panelController, !Self.isSystemQuit else { return .terminateNow }
+        let busy = panelController.busyTerminalCount
+        guard busy > 0 else { return .terminateNow }
+        guard !quitPending else { return .terminateCancel }
+        quitPending = true
+        panelController.askToQuit(busy: busy) { [weak self] quit in
+            self?.quitPending = false
+            NSApp.reply(toApplicationShouldTerminate: quit)
+        }
+        return .terminateLater
+    }
+
+    // Logout, restart and shutdown carry a reason on the quit event, and blocking them would stall the whole system.
+    private static var isSystemQuit: Bool {
+        guard let event = NSAppleEventManager.shared().currentAppleEvent,
+              let reason = event.attributeDescriptor(forKeyword: AEKeyword(kAEQuitReason)) else { return false }
+        return [kAEReallyLogOut, kAEShutDown, kAERestart, kAEQuitAll].contains { reason.enumCodeValue == OSType($0) }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {

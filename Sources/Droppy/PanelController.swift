@@ -161,6 +161,8 @@ final class PanelController: NSObject, NSWindowDelegate {
         UserDefaults.standard.set(Double(geometry.heightFraction), forKey: Self.heightKey)
     }
 
+
+
     private func focusTerminal() {
         guard let view = tabs.selected?.focusedView else { return }
         panel.makeKeyAndOrderFront(nil)
@@ -229,6 +231,9 @@ final class PanelController: NSObject, NSWindowDelegate {
                 self.tab(for: view)?.toggleZoom()
                 self.refreshTabs()
             }
+        case .quit:
+            // terminate waits in a nested loop for the confirmation, which would starve the main dispatch queue.
+            RunLoop.main.perform { MainActor.assumeIsolated { NSApp.terminate(nil) } }
         }
         return true
     }
@@ -275,7 +280,38 @@ final class PanelController: NSObject, NSWindowDelegate {
         }
     }
 
+    var busyTerminalCount: Int { tabs.tabs.reduce(0) { $0 + $1.views.filter(\.needsConfirmClose).count } }
+
+    func askToQuit(busy: Int, answer: @escaping @MainActor (Bool) -> Void) {
+        let alert = NSAlert()
+        alert.messageText = "Quit Droppy?"
+        alert.informativeText = busy == 1
+            ? "A process is still running in 1 terminal and will be terminated."
+            : "A process is still running in \(busy) terminals and will be terminated."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Quit")
+        alert.addButton(withTitle: "Cancel")
+        if isVisible, panel.isVisible, panel.attachedSheet == nil {
+            alert.beginSheetModal(for: panel) { response in
+                MainActor.assumeIsolated {
+                    let quit = response == .alertFirstButtonReturn
+                    if !quit { self.focusTerminal() }
+                    answer(quit)
+                }
+            }
+            return
+        }
+        let previous = NSWorkspace.shared.frontmostApplication
+        NSApp.activate(ignoringOtherApps: true)
+        let quit = alert.runModal() == .alertFirstButtonReturn
+        if !quit, let previous, previous != NSRunningApplication.current { previous.activate(options: []) }
+        // NSApp.reply must not run before applicationShouldTerminate has returned .terminateLater.
+        DispatchQueue.main.async { answer(quit) }
+    }
+
     private func confirm(title: String, then action: @escaping @MainActor () -> Void) {
+        // A sheet is already up (for instance the quit confirmation); stacking a second one on the panel is not possible.
+        guard panel.attachedSheet == nil else { return }
         let alert = NSAlert()
         alert.messageText = title
         alert.informativeText = "A process is still running and will be terminated."
