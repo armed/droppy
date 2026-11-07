@@ -1,0 +1,4 @@
+.build/
+Vendor/
+*.xcodeproj/xcuserdata/
+.DS_Store

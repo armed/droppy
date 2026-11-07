@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+GHOSTTY_TAG="v1.4.0"
+
+root="$(cd "$(dirname "$0")/.." && pwd)"
+src="$root/Vendor/src/ghostty"
+out="$root/Vendor"
+
+if [ ! -d "$src/.git" ]; then
+  git clone --depth 1 --branch "$GHOSTTY_TAG" https://github.com/ghostty-org/ghostty.git "$src"
+fi
+
+cd "$src"
+actual="$(git describe --tags --exact-match)"
+if [ "$actual" != "$GHOSTTY_TAG" ]; then
+  echo "expected $GHOSTTY_TAG in $src, found $actual; remove Vendor/src/ghostty" >&2
+  exit 1
+fi
+
+zig="$(cd "$root" && mise which zig)"
+"$zig" build \
+  -Demit-xcframework=true \
+  -Demit-macos-app=false \
+  -Dxcframework-target=native \
+  -Doptimize=ReleaseFast
+
+mkdir -p "$out"
+rm -rf "$out/GhosttyKit.xcframework"
+cp -R macos/GhosttyKit.xcframework "$out/"
+rm -rf "$out/share"
+mkdir -p "$out/share/ghostty"
+cp -R zig-out/share/terminfo "$out/share/"
+cp -R zig-out/share/ghostty/shell-integration "$out/share/ghostty/"
+echo "installed $out/GhosttyKit.xcframework and $out/share"
