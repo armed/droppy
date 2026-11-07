@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import GhosttyKit
 
 @MainActor
@@ -7,6 +8,7 @@ final class TerminalView: NSView {
     weak var runtime: GhosttyRuntime?
 
     var cellSize: NSSize = .zero
+    var onResizeKey: ((Bool) -> Void)?
     private var cursor: NSCursor = .arrow
 
     var markedText = NSMutableAttributedString()
@@ -239,6 +241,7 @@ final class TerminalView: NSView {
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
         guard event.type == .keyDown, focused, let surface else { return false }
+        if handleResizeKey(event) { return true }
         var ghosttyEvent = event.ghosttyKeyEvent(GHOSTTY_ACTION_PRESS)
         let isBinding = (event.characters ?? "").withCString { text in
             ghosttyEvent.text = text
@@ -250,6 +253,7 @@ final class TerminalView: NSView {
     }
 
     override func keyDown(with event: NSEvent) {
+        if handleResizeKey(event) { return }
         guard let surface else {
             interpretKeyEvents([event])
             return
@@ -320,7 +324,24 @@ final class TerminalView: NSView {
     }
 
     override func keyUp(with event: NSEvent) {
+        if Self.resizeDirection(event) != nil { return }
         _ = sendKey(GHOSTTY_ACTION_RELEASE, event: event)
+    }
+
+    // Matched by physical key so the shortcut survives non-Latin layouts.
+    private static func resizeDirection(_ event: NSEvent) -> Bool? {
+        guard event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting(.capsLock) == .command else { return nil }
+        switch Int(event.keyCode) {
+        case kVK_ANSI_J: return true
+        case kVK_ANSI_K: return false
+        default: return nil
+        }
+    }
+
+    private func handleResizeKey(_ event: NSEvent) -> Bool {
+        guard let grow = Self.resizeDirection(event) else { return false }
+        onResizeKey?(grow)
+        return true
     }
 
     override func flagsChanged(with event: NSEvent) {

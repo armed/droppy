@@ -35,5 +35,28 @@ struct PanelGeometry {
         return frame
     }
 
+    static let heightRange: ClosedRange<CGFloat> = 0.15...1.0
+    static let heightStep: CGFloat = 0.05
+
+    mutating func setHeightFraction(_ fraction: CGFloat) {
+        heightFraction = min(max(fraction, Self.heightRange.lowerBound), Self.heightRange.upperBound)
+    }
+
+    mutating func stepHeight(grow: Bool) {
+        setHeightFraction(heightFraction + (grow ? Self.heightStep : -Self.heightStep))
+    }
+
+    // Inverse of shownFrame: the height at which the free edge sits under the cursor.
+    // Left, right and center panels are vertically centred, so their edge moves at half rate.
+    func heightFraction(forCursorY y: CGFloat, in area: NSRect) -> CGFloat {
+        switch edge {
+        case .top: (area.maxY - y) / area.height
+        case .bottom: (y - area.minY) / area.height
+        case .left, .right, .center: 2 * (area.midY - y) / area.height
+        }
+    }
+
+    var resizeEdgeIsTop: Bool { edge == .bottom }
+
     var fadesInPlace: Bool { edge == .center }
 }
