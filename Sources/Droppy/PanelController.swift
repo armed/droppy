@@ -207,6 +207,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         content.tabBarPosition = config.tabBar
         hidesOnFocusLoss = config.hideOnFocusLoss
         animationDuration = config.animationDuration
+        tabs.autoEqualizeSplits = config.autoEqualizeSplits
         panel.hasShadow = config.shadow
         borderWidth = config.borderWidth
         borderColor = config.borderColor
@@ -477,7 +478,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     // The pane may already be gone by the time a confirmation answers, so membership is re-checked here.
     private func closePane(_ view: TerminalView) {
         guard let tab = tabs.tab(containing: view) else { return }
-        if tab.remove(view) {
+        if tab.remove(view, equalizing: tabs.autoEqualizeSplits) {
             closeNow([tab])
         } else {
             view.close()

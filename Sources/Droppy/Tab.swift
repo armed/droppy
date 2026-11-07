@@ -33,21 +33,22 @@ final class Tab {
         applyVisibility()
     }
 
-    func split(_ target: TerminalView, direction: SplitDirection, adding view: TerminalView) {
+    func split(_ target: TerminalView, direction: SplitDirection, adding view: TerminalView, equalizing: Bool = false) {
         tree = tree.inserting(view, beside: target, direction: direction)
+        if equalizing { tree = tree.equalized() }
         zoomedView = nil
         focusedView = view
         refresh()
     }
 
     // Returns true when the tab has no views left and must be closed.
-    func remove(_ view: TerminalView) -> Bool {
+    func remove(_ view: TerminalView, equalizing: Bool = false) -> Bool {
         guard let remaining = tree.removing(view) else { return true }
         if focusedView === view {
             focusedView = tree.sibling(of: view) ?? remaining.leaves[0]
         }
         if zoomedView === view { zoomedView = nil }
-        tree = remaining
+        tree = equalizing ? remaining.equalized() : remaining
         refresh()
         return false
     }

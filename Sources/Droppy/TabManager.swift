@@ -6,6 +6,7 @@ final class TabManager {
     private var list = TabList<Tab>()
 
     var onChange: (() -> Void)?
+    var autoEqualizeSplits = false
 
     init(runtime: GhosttyRuntime) {
         self.runtime = runtime
@@ -32,7 +33,7 @@ final class TabManager {
     func split(_ tab: Tab, direction: SplitDirection) {
         let source = tab.focusedView
         let view = TerminalView(runtime: runtime, inheritFrom: source, context: GHOSTTY_SURFACE_CONTEXT_SPLIT)
-        tab.split(source, direction: direction, adding: view)
+        tab.split(source, direction: direction, adding: view, equalizing: autoEqualizeSplits)
         onChange?()
     }
 

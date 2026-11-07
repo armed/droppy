@@ -25,6 +25,7 @@ struct Config: Equatable {
     var borderColor: RGBA?
     var shadow = true
     var animationDuration: TimeInterval = 0.2
+    var autoEqualizeSplits = false
 }
 
 struct ConfigIssue: Equatable {
@@ -45,6 +46,7 @@ struct ConfigParseResult {
 enum ConfigParser {
     static let header = """
     # Droppy configuration. Lines are `key = value`; this file is the only configuration Droppy reads.
+    # Splits can be equalized by hand with cmd+ctrl+=, or another trigger via `keybind = <trigger>=equalize_splits`.
     # Everything below is commented out at its default. The first section is Droppy's own;
     # every other key is passed to Ghostty's terminal core unchanged, see the reference section.
 
@@ -79,6 +81,9 @@ enum ConfigParser {
     # Seconds the panel takes to slide in and out, 0 to 2; 0 shows and hides it instantly.
     # animation-duration = 0.2
 
+    # Equalize a tab's splits after each new split and after a pane closes.
+    # auto-equalize-splits = false
+
 
     """
 
@@ -90,7 +95,8 @@ enum ConfigParser {
     }
 
     static let ownedKeys: Set<String> = ["hotkey", "position", "alignment", "width", "height", "tab-bar", "hide-on-focus-loss",
-                                       "border-width", "border-color", "shadow", "animation-duration"]
+                                       "border-width", "border-color", "shadow", "animation-duration",
+                                       "auto-equalize-splits"]
 
     // Ghostty resolves relative paths against the file it loads, which for the forwarded copy would be the
     // temp directory, so the path-valued keys are made absolute against the real config directory.
@@ -173,6 +179,9 @@ enum ConfigParser {
         case "shadow":
             guard let flag = ["true": true, "false": false][value.lowercased()] else { return "expected true or false" }
             config.shadow = flag
+        case "auto-equalize-splits":
+            guard let flag = ["true": true, "false": false][value.lowercased()] else { return "expected true or false" }
+            config.autoEqualizeSplits = flag
         case "animation-duration":
             guard let seconds = Double(value), seconds.isFinite, (0...2).contains(seconds) else { return "invalid animation-duration" }
             config.animationDuration = seconds
