@@ -4,8 +4,9 @@ set -euo pipefail
 GHOSTTY_TAG="v1.4.0"
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
+optimize="${1:-ReleaseFast}"
 src="$root/Vendor/src/ghostty"
-out="$root/Vendor"
+out="${GHOSTTY_VENDOR_OUT:-$root/Vendor}"
 
 if [ ! -d "$src/.git" ]; then
   git clone --depth 1 --branch "$GHOSTTY_TAG" https://github.com/ghostty-org/ghostty.git "$src"
@@ -23,7 +24,7 @@ zig="$(cd "$root" && mise which zig)"
   -Demit-xcframework=true \
   -Demit-macos-app=false \
   -Dxcframework-target=native \
-  -Doptimize=ReleaseFast
+  -Doptimize="$optimize"
 
 mkdir -p "$out"
 rm -rf "$out/GhosttyKit.xcframework"

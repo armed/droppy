@@ -11,12 +11,15 @@ if [ ! -d "$root/Vendor/GhosttyKit.xcframework" ] || [ ! -d "$root/Vendor/share"
 fi
 
 cd "$root"
-swift build -c "$config"
+flags=()
+[ "$config" = release ] && flags=(-Xswiftc -Osize)
+swift build -c "$config" ${flags[@]+"${flags[@]}"}
 bin="$(swift build -c "$config" --show-bin-path)/Droppy"
 
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$bin" "$app/Contents/MacOS/Droppy"
+[ "$config" = release ] && strip -x "$app/Contents/MacOS/Droppy"
 cp -R Vendor/share/terminfo "$app/Contents/Resources/"
 cp -R Vendor/share/ghostty "$app/Contents/Resources/"
 cp Vendor/share/droppy/config.template "$app/Contents/Resources/"
