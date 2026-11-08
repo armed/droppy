@@ -56,6 +56,8 @@ Droppy's own keys:
 | `border-width` | `1` | points, 0 to 20; 0 turns the border off |
 | `border-sides` | `all` | `all`, `none`, or a comma-separated list of `top`, `bottom`, `left`, `right` |
 | `border-color` | `auto` | `auto`, `#rrggbb`, `#rrggbbaa` |
+| `corner-radius` | `0` | points, 0 to 40; 0 keeps the corners square |
+| `corner-radius-corners` | `all` | `all`, `none`, or a comma-separated list of `top-left`, `top-right`, `bottom-left`, `bottom-right` |
 | `shadow` | `true` | `true`, `false` |
 | `animation-duration` | `0.2` | seconds, 0 to 2 |
 | `auto-equalize-splits` | `false` | `true`, `false` |

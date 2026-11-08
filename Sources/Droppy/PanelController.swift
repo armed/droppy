@@ -24,6 +24,8 @@ final class PanelController: NSObject, NSWindowDelegate {
     private var borderWidth: CGFloat = 1
     private var borderSides = PanelSides.all
     private var borderColor: RGBA?
+    private var cornerRadius: CGFloat = 0
+    private var cornerCorners = PanelCorners.all
     private var previousApp: NSRunningApplication?
     private var animationToken = 0
     private var animationsInFlight = 0
@@ -222,7 +224,9 @@ final class PanelController: NSObject, NSWindowDelegate {
         borderWidth = config.borderWidth
         borderSides = config.borderSides
         borderColor = config.borderColor
-        updateBorder()
+        cornerRadius = config.cornerRadius
+        cornerCorners = config.cornerRadiusCorners
+        refreshAppearance()
         applyHeight()
     }
 
@@ -231,7 +235,8 @@ final class PanelController: NSObject, NSWindowDelegate {
     private func updateBorder() {
         let color = borderColor.map { NSColor(srgbRed: $0.red, green: $0.green, blue: $0.blue, alpha: $0.alpha) }
             ?? runtime.foregroundColor.withAlphaComponent(0.3)
-        content.border.update(sides: borderSides, width: borderWidth, color: color)
+        content.setCorners(radius: cornerRadius, corners: cornerCorners)
+        content.border.update(sides: borderSides, width: borderWidth, color: color, radius: cornerRadius, corners: cornerCorners)
         panel.invalidateShadow()
     }
 
@@ -246,8 +251,9 @@ final class PanelController: NSObject, NSWindowDelegate {
     private func refreshAppearance() {
         applyDividerColor()
         let opaque = runtime.backgroundOpacity >= 1
-        panel.isOpaque = opaque
-        panel.backgroundColor = opaque ? .black : .clear
+        let rounded = cornerRadius > 0 && !cornerCorners.isEmpty
+        panel.isOpaque = opaque && !rounded
+        panel.backgroundColor = panel.isOpaque ? .black : .clear
         refreshBar()
         updateBorder()
     }

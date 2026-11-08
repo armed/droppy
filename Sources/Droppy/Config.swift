@@ -14,6 +14,15 @@ struct PanelSides: OptionSet {
     static let all: PanelSides = [.top, .bottom, .left, .right]
 }
 
+struct PanelCorners: OptionSet {
+    let rawValue: Int
+    static let topLeft = PanelCorners(rawValue: 1)
+    static let topRight = PanelCorners(rawValue: 2)
+    static let bottomLeft = PanelCorners(rawValue: 4)
+    static let bottomRight = PanelCorners(rawValue: 8)
+    static let all: PanelCorners = [.topLeft, .topRight, .bottomLeft, .bottomRight]
+}
+
 struct RGBA: Equatable {
     var red: Double
     var green: Double
@@ -33,6 +42,8 @@ struct Config: Equatable {
     var borderSides = PanelSides.all
     // nil derives the colour from the terminal theme.
     var borderColor: RGBA?
+    var cornerRadius: CGFloat = 0
+    var cornerRadiusCorners = PanelCorners.all
     var shadow = true
     var animationDuration: TimeInterval = 0.2
     var autoEqualizeSplits = false
@@ -89,6 +100,12 @@ enum ConfigParser {
     # auto derives a quiet colour from the terminal's own; or #rrggbb / #rrggbbaa.
     # border-color = auto
 
+    # Corner rounding in points, 0 to 40; 0 keeps the corners square.
+    # corner-radius = 0
+
+    # Which corners are rounded: all, none, or a comma-separated list of top-left, top-right, bottom-left, bottom-right.
+    # corner-radius-corners = all
+
     # A drop shadow around the panel.
     # shadow = true
 
@@ -112,7 +129,8 @@ enum ConfigParser {
     }
 
     static let ownedKeys: Set<String> = ["hotkey", "position", "alignment", "width", "height", "tab-bar", "hide-on-focus-loss",
-                                       "border-width", "border-sides", "border-color", "shadow", "animation-duration",
+                                       "border-width", "border-sides", "border-color", "corner-radius",
+                                       "corner-radius-corners", "shadow", "animation-duration",
                                        "auto-equalize-splits", "launch-at-login"]
 
     // Ghostty resolves relative paths against the file it loads, which for the forwarded copy would be the
@@ -196,6 +214,12 @@ enum ConfigParser {
                 guard let color = parseColor(value) else { return "invalid border-color" }
                 config.borderColor = color
             }
+        case "corner-radius":
+            guard let radius = Double(value), radius.isFinite, (0...40).contains(radius) else { return "invalid corner-radius" }
+            config.cornerRadius = CGFloat(radius)
+        case "corner-radius-corners":
+            guard let corners = parseCorners(value) else { return "invalid corner-radius-corners" }
+            config.cornerRadiusCorners = corners
         case "shadow":
             guard let flag = ["true": true, "false": false][value.lowercased()] else { return "expected true or false" }
             config.shadow = flag
@@ -230,6 +254,23 @@ enum ConfigParser {
             sides.insert(side)
         }
         return sides
+    }
+
+    static func parseCorners(_ value: String) -> PanelCorners? {
+        switch value.lowercased() {
+        case "all": return .all
+        case "none": return []
+        default: break
+        }
+        let names: [String: PanelCorners] = [
+            "top-left": .topLeft, "top-right": .topRight, "bottom-left": .bottomLeft, "bottom-right": .bottomRight,
+        ]
+        var corners: PanelCorners = []
+        for part in value.lowercased().split(separator: ",", omittingEmptySubsequences: false) {
+            guard let corner = names[part.trimmingCharacters(in: .whitespaces)] else { return nil }
+            corners.insert(corner)
+        }
+        return corners
     }
 
     static func parseColor(_ value: String) -> RGBA? {
