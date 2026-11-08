@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -50,7 +51,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         panelController?.apply(config)
         applyHotKey(config.hotkey)
+        applyLaunchAtLogin(config.launchAtLogin)
         rebuildStatusMenu()
+    }
+
+    private func applyLaunchAtLogin(_ enabled: Bool) {
+        let service = SMAppService.mainApp
+        let registered = service.status == .enabled
+        guard enabled != registered else { return }
+        do {
+            if enabled { try service.register() } else { try service.unregister() }
+        } catch {
+            log.error("launch at login failed: \(String(describing: error), privacy: .public)")
+        }
     }
 
     // A binding that cannot be registered leaves the previous one in place.

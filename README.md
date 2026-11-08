@@ -57,6 +57,7 @@ Droppy's own keys:
 | `shadow` | `true` | `true`, `false` |
 | `animation-duration` | `0.2` | seconds, 0 to 2 |
 | `auto-equalize-splits` | `false` | `true`, `false` |
+| `launch-at-login` | `false` | `true`, `false` |
 
 Every other key is passed to Ghostty unchanged, so Ghostty's options, `keybind` and `theme` work as documented by Ghostty. The status-bar menu has Open Config, Reload Config and Open Config Reference (a read-only copy of the template, which lists Ghostty's options with their defaults). A line that fails to parse is shown in that menu as "Config line N: ...".
 

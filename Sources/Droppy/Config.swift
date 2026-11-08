@@ -36,6 +36,7 @@ struct Config: Equatable {
     var shadow = true
     var animationDuration: TimeInterval = 0.2
     var autoEqualizeSplits = false
+    var launchAtLogin = false
 }
 
 struct ConfigIssue: Equatable {
@@ -97,6 +98,9 @@ enum ConfigParser {
     # Equalize a tab's splits after each new split and after a pane closes.
     # auto-equalize-splits = false
 
+    # Start Droppy when you log in, so the hotkey works right away.
+    # launch-at-login = false
+
 
     """
 
@@ -109,7 +113,7 @@ enum ConfigParser {
 
     static let ownedKeys: Set<String> = ["hotkey", "position", "alignment", "width", "height", "tab-bar", "hide-on-focus-loss",
                                        "border-width", "border-sides", "border-color", "shadow", "animation-duration",
-                                       "auto-equalize-splits"]
+                                       "auto-equalize-splits", "launch-at-login"]
 
     // Ghostty resolves relative paths against the file it loads, which for the forwarded copy would be the
     // temp directory, so the path-valued keys are made absolute against the real config directory.
@@ -198,6 +202,9 @@ enum ConfigParser {
         case "auto-equalize-splits":
             guard let flag = ["true": true, "false": false][value.lowercased()] else { return "expected true or false" }
             config.autoEqualizeSplits = flag
+        case "launch-at-login":
+            guard let flag = ["true": true, "false": false][value.lowercased()] else { return "expected true or false" }
+            config.launchAtLogin = flag
         case "animation-duration":
             guard let seconds = Double(value), seconds.isFinite, (0...2).contains(seconds) else { return "invalid animation-duration" }
             config.animationDuration = seconds
