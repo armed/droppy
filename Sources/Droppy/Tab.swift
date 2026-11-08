@@ -20,8 +20,11 @@ final class Tab {
     var views: [TerminalView] { tree.leaves }
     var contentView: NSView { container }
 
+    var userTitle: String?
+
     var title: String {
-        focusedView.title.isEmpty ? "Terminal" : focusedView.title
+        if let userTitle { return userTitle }
+        return focusedView.title.isEmpty ? "Terminal" : focusedView.title
     }
 
     func contains(_ view: TerminalView) -> Bool {

@@ -39,6 +39,10 @@ final class PanelController: NSObject, NSWindowDelegate {
             guard let self, self.tabs.tabs.indices.contains(index) else { return }
             self.requestClose([self.tabs.tabs[index]])
         }
+        content.tabBar.onRename = { [weak self] index in
+            guard let self, self.tabs.tabs.indices.contains(index) else { return }
+            self.promptTitle(for: self.tabs.tabs[index])
+        }
         content.tabBar.onNew = { [weak self] in self?.newTab(inheriting: self?.tabs.selected?.focusedView) }
         content.strip.onDrag = { [weak self] in self?.dragResize(toCursorY: $0) }
         content.strip.onEnd = { [weak self] in self?.endResize() }
@@ -290,6 +294,9 @@ final class PanelController: NSObject, NSWindowDelegate {
         case .setTitle(let title):
             view?.title = title
             refreshBar()
+        case .promptTitle:
+            guard let tab = view.flatMap({ tabs.tab(containing: $0) }) ?? tabs.selected else { return false }
+            DispatchQueue.main.async { self.promptTitle(for: tab) }
         case .newTab:
             let source = view ?? tabs.selected?.focusedView
             DispatchQueue.main.async { self.newTab(inheriting: source) }
@@ -352,6 +359,31 @@ final class PanelController: NSObject, NSWindowDelegate {
         case .this: [tab]
         case .other: tabs.tabs.filter { $0 !== tab }
         case .right: Array(tabs.tabs.dropFirst(index + 1))
+        }
+    }
+
+    // The panel's resign-key handler ignores focus loss while a sheet is attached, so the sheet keeps the panel up.
+    private func promptTitle(for tab: Tab) {
+        guard panel.isVisible, panel.attachedSheet == nil, tabs.tabs.contains(where: { $0 === tab }) else { return }
+        let alert = NSAlert()
+        alert.messageText = "Rename Tab"
+        alert.informativeText = "Leave empty to use the automatic title."
+        alert.addButton(withTitle: "Rename")
+        alert.addButton(withTitle: "Cancel")
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.stringValue = tab.title
+        alert.accessoryView = field
+        alert.window.initialFirstResponder = field
+        alert.beginSheetModal(for: panel) { [weak self] response in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if response == .alertFirstButtonReturn, self.tabs.tabs.contains(where: { $0 === tab }) {
+                    let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                    tab.userTitle = name.isEmpty ? nil : name
+                    self.refreshBar()
+                }
+                self.focusTerminal()
+            }
         }
     }
 

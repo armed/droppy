@@ -32,6 +32,7 @@ enum TerminalAction {
     case closeTab(CloseTabMode)
     case gotoTab(Int32)
     case setTitle(String)
+    case promptTitle
     case newSplit(SplitDirection)
     case gotoSplit(SplitFocusTarget)
     case resizeSplit(SplitDirection, UInt16)
@@ -251,6 +252,9 @@ final class GhosttyRuntime {
             case GHOSTTY_ACTION_SET_TITLE:
                 guard let title = action.action.set_title.title else { return false }
                 return runtime.onAction?(.setTitle(String(cString: title)), view) ?? false
+            case GHOSTTY_ACTION_PROMPT_TITLE:
+                guard action.action.prompt_title != GHOSTTY_PROMPT_TITLE_WINDOW else { return false }
+                return runtime.onAction?(.promptTitle, view) ?? false
             case GHOSTTY_ACTION_NEW_SPLIT:
                 let direction: SplitDirection = switch action.action.new_split {
                 case GHOSTTY_SPLIT_DIRECTION_LEFT: .left

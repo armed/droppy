@@ -79,6 +79,7 @@ These are Ghostty's default macOS bindings, as far as Droppy acts on them; rebin
 | cmd+t | New tab |
 | cmd+1 ... cmd+8, cmd+9 | Go to tab, go to the last tab |
 | cmd+shift+[ , cmd+shift+] | Previous, next tab |
+| double-click a tab | Rename it; an empty name restores the automatic title (also `prompt_surface_title`) |
 | cmd+w | Close the focused split or tab |
 | cmd+opt+w | Close the tab |
 | cmd+d, cmd+shift+d | Split right, split down |

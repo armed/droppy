@@ -23,6 +23,7 @@ struct TabBarPalette {
 final class TabItemView: NSView {
     var onSelect: (() -> Void)?
     var onClose: (() -> Void)?
+    var onRename: (() -> Void)?
 
     private let titleField = NSTextField(labelWithString: "")
     private let closeButton = NSButton()
@@ -87,6 +88,17 @@ final class TabItemView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         onSelect?()
+        if event.clickCount == 2 { onRename?() }
+    }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = NSMenu()
+        menu.addItem(withTitle: "Rename Tab…", action: #selector(renameClicked), keyEquivalent: "").target = self
+        return menu
+    }
+
+    @objc private func renameClicked() {
+        onRename?()
     }
 
     override func updateTrackingAreas() {
@@ -114,6 +126,7 @@ final class TabBarView: NSView {
     var onSelect: ((Int) -> Void)?
     var onClose: ((Int) -> Void)?
     var onNew: (() -> Void)?
+    var onRename: ((Int) -> Void)?
 
     private var items: [TabItemView] = []
     private let plusButton = NSButton()
@@ -149,6 +162,7 @@ final class TabBarView: NSView {
             item.configure(number: Self.shortcutNumber(at: index, count: titles.count), title: titles[index], selected: index == selected, palette: palette)
             item.onSelect = { [weak self] in self?.onSelect?(index) }
             item.onClose = { [weak self] in self?.onClose?(index) }
+            item.onRename = { [weak self] in self?.onRename?(index) }
             item.needsLayout = true
         }
         needsLayout = true
