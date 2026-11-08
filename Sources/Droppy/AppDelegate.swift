@@ -2,7 +2,7 @@ import AppKit
 import ServiceManagement
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
     private var statusItem: NSStatusItem?
     private var runtime: GhosttyRuntime?
     private var panelController: PanelController?
@@ -92,6 +92,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = mainMenu
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        SecureInput.shared.shutdown()
+    }
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let panelController, !Self.isSystemQuit else { return .terminateNow }
         let busy = panelController.busyTerminalCount
@@ -146,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.isEnabled = false
         }
         menu.addItem(.separator())
+        menu.addItem(withTitle: "Secure Keyboard Entry", action: #selector(toggleSecureInput), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Open Config", action: #selector(openConfig), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Reload Config", action: #selector(reloadConfig), keyEquivalent: "").target = self
         menu.addItem(withTitle: "Open Config Reference", action: #selector(openReference), keyEquivalent: "").target = self
@@ -176,6 +181,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let hotkeyIssue { problems.append((hotkeyIssue.line > 0 ? hotkeyIssue.line : Int.max, hotkeyIssue.summary)) }
         problems += ghosttyProblems()
         return problems.min { $0.line < $1.line }?.text
+    }
+
+    @objc private func toggleSecureInput() {
+        SecureInput.shared.toggle()
+    }
+
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item.action == #selector(toggleSecureInput) {
+            item.state = SecureInput.shared.requested ? .on : .off
+        }
+        return true
     }
 
     @objc private func openConfig() {

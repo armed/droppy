@@ -64,6 +64,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     func show() {
         guard !isVisible else { return }
         isVisible = true
+        SecureInput.shared.panelVisible = true
         animationToken += 1
         let token = animationToken
 
@@ -99,6 +100,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     func hide(userInitiated: Bool = true) {
         guard isVisible else { return }
         isVisible = false
+        SecureInput.shared.panelVisible = false
         animationToken += 1
         let token = animationToken
 

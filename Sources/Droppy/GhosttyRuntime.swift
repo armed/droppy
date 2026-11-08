@@ -305,6 +305,9 @@ final class GhosttyRuntime {
                 return runtime.onAction?(.reloadConfig, view) ?? false
             case GHOSTTY_ACTION_OPEN_CONFIG:
                 return runtime.onAction?(.openConfig, view) ?? false
+            case GHOSTTY_ACTION_SECURE_INPUT:
+                SecureInput.shared.set(action.action.secure_input)
+                return true
             case GHOSTTY_ACTION_QUIT:
                 return runtime.onAction?(.quit, view) ?? false
             default:
