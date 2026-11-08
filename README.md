@@ -73,7 +73,7 @@ font-size = 14
 
 ## Shortcuts
 
-These are Ghostty's default macOS bindings, as far as Droppy acts on them; rebind them with `keybind`.
+These are Ghostty's default macOS bindings, as far as Droppy acts on them, except tab moving and split focus, which Droppy rebinds; change any of them with `keybind`.
 
 | Shortcut | Action |
 |---|---|
@@ -81,13 +81,13 @@ These are Ghostty's default macOS bindings, as far as Droppy acts on them; rebin
 | cmd+t | New tab |
 | cmd+1 ... cmd+8, cmd+9 | Go to tab, go to the last tab |
 | cmd+shift+[ , cmd+shift+] | Previous, next tab |
-| (unbound) | `move_tab:N` moves the tab by N positions, wrapping around; bind it with `keybind`, e.g. `keybind = cmd+shift+left=move_tab:-1` |
+| cmd+opt+left, cmd+opt+right | Move the tab left, right (`move_tab:N` moves it by N positions, wrapping around) |
 | double-click a tab | Rename it; an empty name restores the automatic title (also `prompt_surface_title`) |
 | cmd+w | Close the focused split or tab |
 | cmd+opt+w | Close the tab |
 | cmd+d, cmd+shift+d | Split right, split down |
 | cmd+[ , cmd+] | Previous, next split |
-| cmd+opt+arrows | Focus the split in that direction |
+| cmd+shift+arrows | Focus the split in that direction |
 | cmd+ctrl+arrows | Resize the split |
 | cmd+ctrl+= | Equalize splits |
 | cmd+shift+return | Zoom the split |
