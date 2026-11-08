@@ -89,7 +89,7 @@ enum ConfigParser {
     # Where the tab bar sits: bottom, top.
     # tab-bar = bottom
 
-    # Hide the panel when another window takes focus.
+    # Hide the panel when another window takes focus. cmd+opt+p (toggle_window_float_on_top) overrides this until the config is reloaded.
     # hide-on-focus-loss = true
 
     # Line width in points; 0 turns the border off.

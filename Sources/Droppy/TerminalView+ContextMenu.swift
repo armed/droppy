@@ -13,6 +13,8 @@ extension TerminalView: NSMenuItemValidation {
         menu.addItem(item("Split Down", #selector(splitDown(_:))))
         menu.addItem(item("Split Up", #selector(splitUp(_:))))
         menu.addItem(.separator())
+        menu.addItem(item("Keep Panel Visible", #selector(keepPanelVisible(_:))))
+        menu.addItem(.separator())
         menu.addItem(item("Close Pane", #selector(closePaneFromMenu(_:))))
         return menu
     }
@@ -25,6 +27,7 @@ extension TerminalView: NSMenuItemValidation {
 
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         guard let surface else { return false }
+        if item.action == #selector(keepPanelVisible(_:)) { item.state = runtime?.panelKept == true ? .on : .off }
         if item.action == #selector(copy(_:)) { return ghostty_surface_has_selection(surface) }
         return true
     }
@@ -33,5 +36,6 @@ extension TerminalView: NSMenuItemValidation {
     @objc private func splitLeft(_ sender: Any?) { perform("new_split:left") }
     @objc private func splitDown(_ sender: Any?) { perform("new_split:down") }
     @objc private func splitUp(_ sender: Any?) { perform("new_split:up") }
+    @objc private func keepPanelVisible(_ sender: Any?) { perform("toggle_window_float_on_top") }
     @objc private func closePaneFromMenu(_ sender: Any?) { perform("close_surface") }
 }

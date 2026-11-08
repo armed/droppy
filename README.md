@@ -76,7 +76,7 @@ font-size = 14
 
 ## Shortcuts
 
-These are Ghostty's default macOS bindings, as far as Droppy acts on them, except tab moving and split focus, which Droppy rebinds; change any of them with `keybind`.
+These are Ghostty's default macOS bindings, as far as Droppy acts on them, except tab moving, split focus and keeping the panel visible, which Droppy rebinds; change any of them with `keybind`.
 
 | Shortcut | Action |
 |---|---|
@@ -85,6 +85,7 @@ These are Ghostty's default macOS bindings, as far as Droppy acts on them, excep
 | cmd+1 ... cmd+8, cmd+9 | Go to tab, go to the last tab |
 | cmd+shift+[ , cmd+shift+] | Previous, next tab |
 | cmd+opt+left, cmd+opt+right | Move the tab left, right (`move_tab:N` moves it by N positions, wrapping around) |
+| cmd+opt+p | Keep the panel visible when it loses focus, or hide it again (`toggle_window_float_on_top`); while kept, the border turns to the accent colour (also "Keep Panel Visible" in the right-click menu). Not saved: a config reload restores `hide-on-focus-loss` |
 | double-click a tab | Rename it; an empty name restores the automatic title (also `prompt_surface_title`) |
 | cmd+w | Close the focused split or tab |
 | cmd+opt+w | Close the tab |

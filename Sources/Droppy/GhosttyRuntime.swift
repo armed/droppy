@@ -32,6 +32,7 @@ enum TerminalAction {
     case closeTab(CloseTabMode)
     case gotoTab(Int32)
     case moveTab(Int)
+    case floatPanel(ghostty_action_float_window_e)
     case setTitle(String)
     case promptTitle
     case newSplit(SplitDirection)
@@ -76,6 +77,7 @@ enum GhosttyError: Error {
 
 @MainActor
 final class GhosttyRuntime {
+    var panelKept = false
     private(set) var app: ghostty_app_t?
     private var config: ghostty_config_t?
     private var observers: [NSObjectProtocol] = []
@@ -230,6 +232,7 @@ final class GhosttyRuntime {
     private static let defaultKeybinds = """
     keybind = cmd+alt+left=move_tab:-1
     keybind = cmd+alt+right=move_tab:1
+    keybind = cmd+alt+p=toggle_window_float_on_top
     keybind = cmd+alt+up=unbind
     keybind = cmd+alt+down=unbind
     keybind = cmd+shift+left=goto_split:left
@@ -361,6 +364,8 @@ final class GhosttyRuntime {
                 return runtime.onAction?(.gotoTab(action.action.goto_tab.rawValue), view) ?? false
             case GHOSTTY_ACTION_MOVE_TAB:
                 return runtime.onAction?(.moveTab(action.action.move_tab.amount), view) ?? false
+            case GHOSTTY_ACTION_FLOAT_WINDOW:
+                return runtime.onAction?(.floatPanel(action.action.float_window), view) ?? false
             case GHOSTTY_ACTION_SET_TITLE:
                 guard let title = action.action.set_title.title else { return false }
                 return runtime.onAction?(.setTitle(String(cString: title)), view) ?? false

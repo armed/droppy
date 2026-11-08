@@ -5,7 +5,13 @@ import GhosttyKit
 final class PanelController: NSObject, NSWindowDelegate {
     var geometry = PanelGeometry()
     var animationDuration: TimeInterval = 0.2
-    var hidesOnFocusLoss = true
+    var hidesOnFocusLoss = true {
+        didSet {
+            guard hidesOnFocusLoss != oldValue else { return }
+            runtime.panelKept = !hidesOnFocusLoss
+            updateBorder()
+        }
+    }
     var onOpenConfig: (() -> Void)?
     var onReloadConfig: (() -> Void)?
 
@@ -239,7 +245,11 @@ final class PanelController: NSObject, NSWindowDelegate {
         let color = borderColor.map { NSColor(srgbRed: $0.red, green: $0.green, blue: $0.blue, alpha: $0.alpha) }
             ?? runtime.foregroundColor.withAlphaComponent(0.3)
         content.setCorners(radius: cornerRadius, corners: cornerCorners)
-        content.border.update(sides: borderSides, width: borderWidth, color: color, radius: cornerRadius, corners: cornerCorners)
+        if hidesOnFocusLoss {
+            content.border.update(sides: borderSides, width: borderWidth, color: color, radius: cornerRadius, corners: cornerCorners)
+        } else {
+            content.border.update(sides: .all, width: max(borderWidth, 2), color: .controlAccentColor, radius: cornerRadius, corners: cornerCorners)
+        }
         panel.invalidateShadow()
     }
 
@@ -324,6 +334,12 @@ final class PanelController: NSObject, NSWindowDelegate {
             DispatchQueue.main.async { self.gotoTab(target) }
         case .moveTab(let offset):
             DispatchQueue.main.async { self.moveTab(for: view, by: offset) }
+        case .floatPanel(let mode):
+            hidesOnFocusLoss = switch mode {
+            case GHOSTTY_FLOAT_WINDOW_ON: false
+            case GHOSTTY_FLOAT_WINDOW_OFF: true
+            default: !hidesOnFocusLoss
+            }
         case .newSplit(let direction):
             DispatchQueue.main.async {
                 guard let tab = self.tab(for: view) else { return }
