@@ -15,6 +15,16 @@ struct TabList<Element: AnyObject> {
         selectedIndex = index
     }
 
+    mutating func insert(_ element: Element, at index: Int, select: Bool) {
+        let position = min(max(index, 0), items.count)
+        items.insert(element, at: position)
+        if select {
+            selectedIndex = position
+        } else if items.count > 1, position <= selectedIndex {
+            selectedIndex += 1
+        }
+    }
+
     @discardableResult
     mutating func remove(_ element: Element) -> Bool {
         guard let index = index(of: element) else { return false }

@@ -328,6 +328,11 @@ final class PanelController: NSObject, NSWindowDelegate {
             DispatchQueue.main.async { self.onReloadConfig?() }
         case .openConfig:
             DispatchQueue.main.async { self.onOpenConfig?() }
+        case .undo:
+            guard tabs.canUndo else { return false }
+            DispatchQueue.main.async { self.tabs.undoClose() }
+        case .redo:
+            return false
         case .quit:
             // terminate waits in a nested loop for the confirmation, which would starve the main dispatch queue.
             RunLoop.main.perform { MainActor.assumeIsolated { NSApp.terminate(nil) } }
@@ -524,9 +529,11 @@ final class PanelController: NSObject, NSWindowDelegate {
     // The pane may already be gone by the time a confirmation answers, so membership is re-checked here.
     private func closePane(_ view: TerminalView) {
         guard let tab = tabs.tab(containing: view) else { return }
+        let record = tabs.paneRecord(closing: view, in: tab)
         if tab.remove(view, equalizing: tabs.autoEqualizeSplits) {
             closeNow([tab])
         } else {
+            tabs.recordClosed(.pane(record))
             view.close()
             refreshTabs()
         }

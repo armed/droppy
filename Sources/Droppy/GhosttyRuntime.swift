@@ -41,6 +41,8 @@ enum TerminalAction {
     case quit
     case openConfig
     case reloadConfig
+    case undo
+    case redo
 }
 
 enum GhosttyError: Error {
@@ -62,6 +64,13 @@ final class GhosttyRuntime {
     var onConfirmPaste: ((TerminalView, PasteConfirmation) -> Void)?
     private(set) var diagnostics: [String] = []
     var onAction: ((TerminalAction, TerminalView?) -> Bool)?
+
+    var undoTimeout: TimeInterval {
+        var milliseconds: UInt = 0
+        let key = "undo-timeout"
+        guard let config, ghostty_config_get(config, &milliseconds, key, UInt(key.utf8.count)) else { return 5 }
+        return TimeInterval(milliseconds) / 1000
+    }
 
     var backgroundOpacity: CGFloat {
         var opacity = 1.0
@@ -309,6 +318,14 @@ final class GhosttyRuntime {
                 return runtime.onAction?(.reloadConfig, view) ?? false
             case GHOSTTY_ACTION_OPEN_CONFIG:
                 return runtime.onAction?(.openConfig, view) ?? false
+            case GHOSTTY_ACTION_PWD:
+                guard let view, let pwd = action.action.pwd.pwd else { return false }
+                view.pwd = String(cString: pwd)
+                return true
+            case GHOSTTY_ACTION_UNDO:
+                return runtime.onAction?(.undo, view) ?? false
+            case GHOSTTY_ACTION_REDO:
+                return runtime.onAction?(.redo, view) ?? false
             case GHOSTTY_ACTION_SECURE_INPUT:
                 SecureInput.shared.set(action.action.secure_input)
                 return true

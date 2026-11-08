@@ -8,9 +8,13 @@ final class Tab {
     private var isShown = false
     let container = SplitContainerView()
 
-    init(root: TerminalView) {
-        tree = .leaf(root)
-        focusedView = root
+    convenience init(root: TerminalView) {
+        self.init(tree: .leaf(root), focused: root)
+    }
+
+    init(tree: SplitNode<TerminalView>, focused: TerminalView) {
+        self.tree = tree
+        focusedView = focused
         container.onRatioDrag = { [weak self] path, ratio, available in
             self?.setRatio(ratio, at: path, available: available)
         }
@@ -25,6 +29,17 @@ final class Tab {
     var title: String {
         if let userTitle { return userTitle }
         return focusedView.title.isEmpty ? "Terminal" : focusedView.title
+    }
+
+    func snapshot() -> (tree: SplitNode<PaneState>, focusedIndex: Int) {
+        (tree.map { PaneState(cwd: $0.pwd, live: $0) }, tree.leaves.firstIndex { $0 === focusedView } ?? 0)
+    }
+
+    func replaceTree(_ new: SplitNode<TerminalView>, focused: TerminalView) {
+        tree = new
+        focusedView = focused
+        zoomedView = nil
+        refresh()
     }
 
     func contains(_ view: TerminalView) -> Bool {

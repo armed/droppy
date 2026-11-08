@@ -97,6 +97,7 @@ These are Ghostty's default macOS bindings, as far as Droppy acts on them; rebin
 | esc | Close the search and return to the terminal |
 | cmd+, | Open config |
 | cmd+shift+, | Reload config |
+| cmd+z | Undo closing a tab or split, within `undo-timeout`; restores layout and directories, not running processes |
 | cmd+q | Quit |
 
 ## Known limitations

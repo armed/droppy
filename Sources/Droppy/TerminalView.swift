@@ -16,6 +16,7 @@ final class TerminalView: NSView {
     private var focused = false
 
     var title = ""
+    var pwd: String?
 
     var searchBar: SearchBarView?
     var searchDebounce: DispatchWorkItem?
@@ -24,6 +25,7 @@ final class TerminalView: NSView {
     init(
         runtime: GhosttyRuntime,
         inheritFrom source: TerminalView? = nil,
+        workingDirectory: String? = nil,
         context: ghostty_surface_context_e = GHOSTTY_SURFACE_CONTEXT_WINDOW
     ) {
         self.runtime = runtime
@@ -43,7 +45,14 @@ final class TerminalView: NSView {
             nsview: Unmanaged.passUnretained(self).toOpaque()
         ))
         config.scale_factor = Double(NSScreen.main?.backingScaleFactor ?? 2)
-        surface = ghostty_surface_new(app, &config)
+        if let workingDirectory {
+            surface = workingDirectory.withCString { path in
+                config.working_directory = path
+                return ghostty_surface_new(app, &config)
+            }
+        } else {
+            surface = ghostty_surface_new(app, &config)
+        }
         if surface == nil { log.error("ghostty_surface_new failed") }
         updateTrackingAreas()
         registerForDrops()

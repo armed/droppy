@@ -48,6 +48,15 @@ indirect enum SplitNode<Leaf: AnyObject> {
         }
     }
 
+    func map<T: AnyObject>(_ transform: (Leaf) -> T) -> SplitNode<T> {
+        switch self {
+        case .leaf(let leaf):
+            return .leaf(transform(leaf))
+        case .split(let axis, let ratio, let first, let second):
+            return .split(axis: axis, ratio: ratio, first: first.map(transform), second: second.map(transform))
+        }
+    }
+
     func contains(_ target: Leaf) -> Bool {
         leaves.contains { $0 === target }
     }
