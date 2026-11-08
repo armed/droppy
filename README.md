@@ -14,6 +14,7 @@ A native macOS drop-down terminal built on libghostty, the terminal core of Ghos
 - Height changes with the mouse (drag the panel's inner edge) and with cmd+j / cmd+k.
 - Scrollback search, per pane.
 - Bell (`bell-features`), desktop notifications (OSC 9 and 777), command-finished notifications (`notify-on-command-finish`) and tab progress (OSC 9;4).
+- Overlay scrollbar (`scrollbar`) and a hovered-link preview.
 - Plain-text config with live reload.
 - All Ghostty options and themes.
 

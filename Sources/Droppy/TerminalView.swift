@@ -21,6 +21,9 @@ final class TerminalView: NSView {
     var title = ""
     var pwd: String?
 
+    let scrollbar = ScrollbarView()
+    let linkStatus = LinkStatusView()
+
     var searchBar: SearchBarView?
     var searchDebounce: DispatchWorkItem?
     var searchAutoSelected = false
@@ -57,8 +60,22 @@ final class TerminalView: NSView {
             surface = ghostty_surface_new(app, &config)
         }
         if surface == nil { log.error("ghostty_surface_new failed") }
+        scrollbar.isHidden = true
+        scrollbar.onScrollToRow = { [weak self] in self?.perform("scroll_to_row:\($0)") }
+        addSubview(scrollbar)
+        addSubview(linkStatus)
         updateTrackingAreas()
         registerForDrops()
+    }
+
+    func scrollbarChanged(total: UInt64, offset: UInt64, len: UInt64) {
+        scrollbar.update(total: total, offset: offset, len: len)
+        scrollbar.isHidden = scrollbar.isHidden || runtime?.scrollbarHidden == true
+    }
+
+    func linkHovered(_ url: String) {
+        linkStatus.show(url, maxWidth: bounds.width)
+        linkStatus.frame.origin = .zero
     }
 
     required init?(coder: NSCoder) {
@@ -83,6 +100,7 @@ final class TerminalView: NSView {
 
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
+        scrollbar.frame = NSRect(x: newSize.width - ScrollbarView.width, y: 0, width: ScrollbarView.width, height: newSize.height)
         syncSize()
     }
 

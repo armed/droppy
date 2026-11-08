@@ -95,6 +95,13 @@ final class GhosttyRuntime {
         return TimeInterval(milliseconds) / 1000
     }
 
+    var scrollbarHidden: Bool {
+        var name: UnsafePointer<CChar>?
+        let key = "scrollbar"
+        guard let config, ghostty_config_get(config, &name, key, UInt(key.utf8.count)), let name else { return false }
+        return String(cString: name) == "never"
+    }
+
     var bellFeatures: BellFeatures {
         var bits: UInt32 = 0
         let key = "bell-features"
@@ -316,6 +323,15 @@ final class GhosttyRuntime {
                     width: CGFloat(action.action.cell_size.width),
                     height: CGFloat(action.action.cell_size.height)
                 )
+                return view != nil
+            case GHOSTTY_ACTION_SCROLLBAR:
+                let bar = action.action.scrollbar
+                view?.scrollbarChanged(total: bar.total, offset: bar.offset, len: bar.len)
+                return view != nil
+            case GHOSTTY_ACTION_MOUSE_OVER_LINK:
+                let link = action.action.mouse_over_link
+                let url = link.url.map { String(decoding: UnsafeBufferPointer(start: UnsafeRawPointer($0).assumingMemoryBound(to: UInt8.self), count: link.len), as: UTF8.self) } ?? ""
+                view?.linkHovered(url)
                 return view != nil
             case GHOSTTY_ACTION_NEW_TAB:
                 return runtime.onAction?(.newTab, view) ?? false
