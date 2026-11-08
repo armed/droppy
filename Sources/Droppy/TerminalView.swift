@@ -46,6 +46,7 @@ final class TerminalView: NSView {
         surface = ghostty_surface_new(app, &config)
         if surface == nil { log.error("ghostty_surface_new failed") }
         updateTrackingAreas()
+        registerForDrops()
     }
 
     required init?(coder: NSCoder) {
