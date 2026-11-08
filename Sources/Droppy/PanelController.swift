@@ -43,6 +43,7 @@ final class PanelController: NSObject, NSWindowDelegate {
             guard let self, self.tabs.tabs.indices.contains(index) else { return }
             self.promptTitle(for: self.tabs.tabs[index])
         }
+        content.tabBar.onMove = { [weak self] in self?.tabs.move(from: $0, to: $1) }
         content.tabBar.onNew = { [weak self] in self?.newTab(inheriting: self?.tabs.selected?.focusedView) }
         content.strip.onDrag = { [weak self] in self?.dragResize(toCursorY: $0) }
         content.strip.onEnd = { [weak self] in self?.endResize() }

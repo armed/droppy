@@ -102,7 +102,6 @@ These are Ghostty's default macOS bindings, as far as Droppy acts on them; rebin
 ## Known limitations
 
 - No notifications and no bell.
-- Tabs cannot be reordered by dragging.
 - Links with custom URL schemes are not opened.
 - The app is ad-hoc signed, so Gatekeeper warns on other Macs.
 - cmd+k and cmd+j resize the panel; they replace Ghostty's clear-screen and scroll-to-selection.

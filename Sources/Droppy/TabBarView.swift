@@ -24,6 +24,13 @@ final class TabItemView: NSView {
     var onSelect: (() -> Void)?
     var onClose: (() -> Void)?
     var onRename: (() -> Void)?
+    var onDragBegan: (() -> Void)?
+    var onDragMoved: ((CGFloat) -> Void)?
+    var onDragEnded: (() -> Void)?
+
+    private static let dragThreshold: CGFloat = 4
+    private var pressX: CGFloat?
+    private var dragging = false
 
     private let titleField = NSTextField(labelWithString: "")
     private let closeButton = NSButton()
@@ -89,6 +96,29 @@ final class TabItemView: NSView {
     override func mouseDown(with event: NSEvent) {
         onSelect?()
         if event.clickCount == 2 { onRename?() }
+        pressX = superviewX(of: event)
+        dragging = false
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        guard let pressX else { return }
+        let x = superviewX(of: event)
+        if !dragging {
+            guard abs(x - pressX) >= Self.dragThreshold else { return }
+            dragging = true
+            onDragBegan?()
+        }
+        onDragMoved?(x)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        if dragging { onDragEnded?() }
+        pressX = nil
+        dragging = false
+    }
+
+    private func superviewX(of event: NSEvent) -> CGFloat {
+        (superview ?? self).convert(event.locationInWindow, from: nil).x
     }
 
     override func menu(for event: NSEvent) -> NSMenu? {
@@ -127,7 +157,15 @@ final class TabBarView: NSView {
     var onClose: ((Int) -> Void)?
     var onNew: (() -> Void)?
     var onRename: ((Int) -> Void)?
+    var onMove: ((Int, Int) -> Void)?
 
+    private struct Drag {
+        let index: Int
+        var grab: CGFloat?
+        var x: CGFloat = 0
+    }
+
+    private var drag: Drag?
     private var items: [TabItemView] = []
     private let plusButton = NSButton()
     private var palette = TabBarPalette(terminalBackground: .black)
@@ -163,6 +201,9 @@ final class TabBarView: NSView {
             item.onSelect = { [weak self] in self?.onSelect?(index) }
             item.onClose = { [weak self] in self?.onClose?(index) }
             item.onRename = { [weak self] in self?.onRename?(index) }
+            item.onDragBegan = { [weak self] in self?.beginDrag(index) }
+            item.onDragMoved = { [weak self] in self?.dragMoved(to: $0) }
+            item.onDragEnded = { [weak self] in self?.endDrag() }
             item.needsLayout = true
         }
         needsLayout = true
@@ -179,10 +220,56 @@ final class TabBarView: NSView {
         guard !items.isEmpty else { return }
         let available = bounds.width - Self.plusWidth
         let width = min(available / CGFloat(items.count), Self.maxItemWidth)
+        let target = dropIndex(itemWidth: width)
         for (index, item) in items.enumerated() {
-            item.frame = NSRect(x: CGFloat(index) * width, y: 0, width: width, height: bounds.height)
+            var slot = index
+            if let drag, index != drag.index {
+                if drag.index < index, index <= target { slot -= 1 }
+                if target <= index, index < drag.index { slot += 1 }
+            }
+            var x = CGFloat(slot) * width
+            if drag?.index == index { x = draggedX(itemWidth: width) }
+            item.frame = NSRect(x: x, y: 0, width: width, height: bounds.height)
         }
         plusButton.frame = NSRect(x: width * CGFloat(items.count), y: 0, width: Self.plusWidth, height: bounds.height)
+    }
+
+    private var itemWidth: CGFloat {
+        min((bounds.width - Self.plusWidth) / CGFloat(max(items.count, 1)), Self.maxItemWidth)
+    }
+
+    private func draggedX(itemWidth width: CGFloat) -> CGFloat {
+        guard let drag else { return 0 }
+        let maxX = width * CGFloat(items.count - 1)
+        return min(max(drag.x - (drag.grab ?? 0), 0), maxX)
+    }
+
+    private func dropIndex(itemWidth width: CGFloat) -> Int {
+        guard drag != nil, width > 0 else { return 0 }
+        return min(max(Int((draggedX(itemWidth: width) / width).rounded()), 0), items.count - 1)
+    }
+
+    private func beginDrag(_ index: Int) {
+        guard items.indices.contains(index) else { return }
+        drag = Drag(index: index)
+        items[index].layer?.zPosition = 1
+    }
+
+    private func dragMoved(to x: CGFloat) {
+        guard var current = drag else { return }
+        if current.grab == nil { current.grab = x - CGFloat(current.index) * itemWidth }
+        current.x = x
+        drag = current
+        needsLayout = true
+    }
+
+    private func endDrag() {
+        guard let current = drag else { return }
+        let target = dropIndex(itemWidth: itemWidth)
+        drag = nil
+        items[current.index].layer?.zPosition = 0
+        needsLayout = true
+        if target != current.index { onMove?(current.index, target) }
     }
 
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }

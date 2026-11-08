@@ -37,6 +37,11 @@ final class TabManager {
         onChange?()
     }
 
+    func move(from source: Int, to destination: Int) {
+        list.move(from: source, to: destination)
+        onChange?()
+    }
+
     func select(at index: Int) {
         list.select(at: index)
         onChange?()

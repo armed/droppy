@@ -27,6 +27,13 @@ struct TabList<Element: AnyObject> {
         return true
     }
 
+    mutating func move(from source: Int, to destination: Int) {
+        guard items.indices.contains(source), items.indices.contains(destination), source != destination else { return }
+        let selectedElement = selected
+        items.insert(items.remove(at: source), at: destination)
+        if let selectedElement, let index = index(of: selectedElement) { selectedIndex = index }
+    }
+
     mutating func select(at index: Int) {
         guard items.indices.contains(index) else { return }
         selectedIndex = index
