@@ -62,6 +62,14 @@ final class SplitContainerView: NSView {
     private var dims: [ObjectIdentifier: DimView] = [:]
     private var dividerViews: [DividerView] = []
     private var dividers: [SplitDivider] = []
+    private var overlays: [(view: TerminalView, overlay: NSView)] = []
+
+    func setPaneOverlays(_ overlays: [(view: TerminalView, overlay: NSView)]) {
+        self.overlays.forEach { $0.overlay.removeFromSuperview() }
+        self.overlays = overlays
+        overlays.forEach { addSubview($0.overlay) }
+        relayout()
+    }
 
     func update(tree: SplitNode<TerminalView>, focused: TerminalView, zoomed: TerminalView?) {
         self.tree = tree
@@ -113,6 +121,18 @@ final class SplitContainerView: NSView {
                     height: SearchBarView.size.height
                 )
             }
+        }
+
+        for (view, overlay) in overlays {
+            let size = overlay.fittingSize
+            let width = min(size.width, max(view.frame.width - 16, 0))
+            overlay.isHidden = view.isHidden
+            overlay.frame = NSRect(
+                x: view.frame.midX - width / 2,
+                y: view.frame.midY - size.height / 2,
+                width: width,
+                height: size.height
+            )
         }
 
         dividers = zoomed == nil ? layout.dividers : []

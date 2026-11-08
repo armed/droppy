@@ -98,6 +98,7 @@ These are Ghostty's default macOS bindings, as far as Droppy acts on them, excep
 | cmd+j, cmd+k | Increase, decrease the panel height |
 | cmd+c, cmd+v | Copy, paste |
 | cmd+=, cmd+-, cmd+0 | Font size larger, smaller, reset |
+| double-tap cmd | Jump mode: tabs show a top-row letter (q-p), every split of the tab shows a letter and its directory; press a tab letter to switch tab, a pane letter to focus that split; double-tap cmd or esc leaves it |
 | cmd+f | Search the scrollback in the focused pane |
 | return, cmd+g | Next match (return only in the search field) |
 | shift+return, cmd+shift+g | Previous match (shift+return only in the search field) |

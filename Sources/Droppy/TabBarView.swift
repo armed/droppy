@@ -185,6 +185,7 @@ final class TabBarView: NSView {
     }
 
     private var drag: Drag?
+    private var overlays: [Int: NSView] = [:]
     private var items: [TabItemView] = []
     private let plusButton = NSButton()
     private var palette = TabBarPalette(terminalBackground: .black)
@@ -200,6 +201,13 @@ final class TabBarView: NSView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is not supported")
+    }
+
+    func setTabOverlays(_ new: [Int: NSView]) {
+        overlays.values.forEach { $0.removeFromSuperview() }
+        overlays = new
+        overlays.values.forEach(addSubview)
+        needsLayout = true
     }
 
     func update(titles: [String], progress: [TabProgress?], selected: Int, palette: TabBarPalette) {
@@ -249,6 +257,20 @@ final class TabBarView: NSView {
             var x = CGFloat(slot) * width
             if drag?.index == index { x = draggedX(itemWidth: width) }
             item.frame = NSRect(x: x, y: 0, width: width, height: bounds.height)
+        }
+        for (index, overlay) in overlays {
+            guard items.indices.contains(index) else {
+                overlay.isHidden = true
+                continue
+            }
+            overlay.isHidden = false
+            let size = overlay.fittingSize
+            overlay.frame = NSRect(
+                x: items[index].frame.minX + 4,
+                y: (bounds.height - size.height) / 2,
+                width: size.width,
+                height: size.height
+            )
         }
         plusButton.frame = NSRect(x: width * CGFloat(items.count), y: 0, width: Self.plusWidth, height: bounds.height)
     }

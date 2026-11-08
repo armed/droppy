@@ -2,7 +2,7 @@ import AppKit
 import GhosttyKit
 
 @MainActor
-final class PanelController: NSObject, NSWindowDelegate {
+final class PanelController: NSObject, NSWindowDelegate, PanelModeHost {
     var geometry = PanelGeometry()
     var animationDuration: TimeInterval = 0.2
     var hidesOnFocusLoss = true {
@@ -38,6 +38,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     private var animationsInFlight = 0
     private var isResizing = false
     private var shownScreen: NSScreen?
+    private var modes: ModeController!
     private(set) var isVisible = false
 
     init(runtime: GhosttyRuntime) {
@@ -72,6 +73,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         runtime.onConfigChange = { [weak self] in self?.refreshAppearance() }
         runtime.onConfirmPaste = { [weak self] view, request in self?.confirmPaste(view, request) }
         refreshAppearance()
+        modes = ModeController(window: panel, host: self)
     }
 
     func toggle() {
@@ -116,6 +118,7 @@ final class PanelController: NSObject, NSWindowDelegate {
 
     func hide(userInitiated: Bool = true) {
         guard isVisible else { return }
+        modes.exit()
         isVisible = false
         SecureInput.shared.panelVisible = false
         animationToken += 1
@@ -253,6 +256,25 @@ final class PanelController: NSObject, NSWindowDelegate {
         panel.invalidateShadow()
     }
 
+    var selectedTab: Tab? { tabs.selected }
+
+    var tabCount: Int { tabs.tabs.count }
+
+    func selectTab(at index: Int) {
+        guard index != tabs.selectedIndex else { return }
+        tabs.select(at: index)
+    }
+
+    func setTabOverlays(_ overlays: [Int: NSView]) {
+        content.tabBar.setTabOverlays(overlays)
+    }
+
+    func focusPane(_ view: TerminalView) {
+        guard let tab = tabs.selected else { return }
+        tab.focus(view)
+        refreshTabs()
+    }
+
     private func focusTerminal() {
         guard let view = tabs.selected?.focusedView else { return }
         panel.makeKeyAndOrderFront(nil)
@@ -299,6 +321,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         for tab in tabs.tabs {
             tab.setShown(panelShown && tab === tabs.selected)
         }
+        modes.refresh()
         if panelShown { focusTerminal() }
     }
 
@@ -631,6 +654,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     }
 
     func windowDidResignKey(_ notification: Notification) {
+        modes.exit()
         guard isVisible, hidesOnFocusLoss, !isResizing, panel.attachedSheet == nil else { return }
         previousApp = nil
         hide(userInitiated: false)

@@ -118,6 +118,19 @@ final class Tab {
         container.update(tree: tree, focused: focusedView, zoomed: zoomedView)
     }
 
+    var panesByPosition: [TerminalView] {
+        tree.layout(in: container.bounds).panes
+            .sorted {
+                let (top0, top1) = ($0.frame.maxY.rounded(), $1.frame.maxY.rounded())
+                return top0 != top1 ? top0 > top1 : $0.frame.minX < $1.frame.minX
+            }
+            .map(\.leaf)
+    }
+
+    func setPaneOverlays(_ overlays: [(view: TerminalView, overlay: NSView)]) {
+        container.setPaneOverlays(overlays)
+    }
+
     private func refresh() {
         container.update(tree: tree, focused: focusedView, zoomed: zoomedView)
         applyVisibility()
