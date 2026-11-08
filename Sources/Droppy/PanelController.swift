@@ -19,6 +19,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     private let panel = DropPanel()
     private let content = PanelContentView()
     private let tabs: TabManager
+    private let notifier = Notifier()
     private var configHeight: CGFloat = 0.4
     private var borderWidth: CGFloat = 1
     private var borderSides = PanelSides.all
@@ -52,7 +53,9 @@ final class PanelController: NSObject, NSWindowDelegate {
         runtime.onCloseSurface = { [weak self] view, processAlive in self?.surfaceClosed(view, processAlive: processAlive) }
         runtime.onResizeKey = { [weak self] in self?.stepHeight(grow: $0) }
         runtime.onAction = { [weak self] action, view in self?.handle(action, from: view) ?? false }
+        notifier.onActivate = { [weak self] id in self?.reveal(viewID: id) }
         runtime.onViewFocused = { [weak self] view in
+            view.bell = false
             self?.tabs.tab(containing: view)?.focus(view)
             self?.refreshBar()
         }
@@ -252,7 +255,8 @@ final class PanelController: NSObject, NSWindowDelegate {
     private func refreshBar() {
         content.tabBarVisible = tabs.tabs.count > 1
         content.tabBar.update(
-            titles: tabs.tabs.map(\.title),
+            titles: tabs.tabs.map { $0.hasBell ? "🔔 \($0.title)" : $0.title },
+            progress: tabs.tabs.map(\.progress),
             selected: tabs.selectedIndex,
             palette: TabBarPalette(terminalBackground: runtime.backgroundColor, opacity: runtime.backgroundOpacity)
         )
@@ -270,8 +274,9 @@ final class PanelController: NSObject, NSWindowDelegate {
     private func refreshTabs() {
         applyDividerColor()
         content.display(tabs.selected)
-        refreshBar()
         let panelShown = isVisible && panel.isVisible
+        if panelShown { tabs.selected?.focusedView.bell = false }
+        refreshBar()
         for tab in tabs.tabs {
             tab.setShown(panelShown && tab === tabs.selected)
         }
@@ -333,11 +338,63 @@ final class PanelController: NSObject, NSWindowDelegate {
             DispatchQueue.main.async { self.tabs.undoClose() }
         case .redo:
             return false
+        case .bell:
+            guard let view else { return false }
+            ringBell(view)
+        case .notify(let title, let body):
+            guard let view else { return false }
+            notifier.post(title: title.isEmpty ? (tab(for: view)?.title ?? "Droppy") : title, body: body, from: view.id)
+        case .commandFinished(let exitCode, let duration):
+            guard let view else { return false }
+            commandFinished(view, exitCode: exitCode, duration: duration)
+        case .progress(let progress):
+            guard let view else { return false }
+            view.progress = progress
+            refreshBar()
         case .quit:
             // terminate waits in a nested loop for the confirmation, which would starve the main dispatch queue.
             RunLoop.main.perform { MainActor.assumeIsolated { NSApp.terminate(nil) } }
         }
         return true
+    }
+
+    private func isFocused(_ view: TerminalView) -> Bool {
+        isVisible && panel.isVisible && tabs.selected?.focusedView === view
+    }
+
+    private func ringBell(_ view: TerminalView) {
+        let features = runtime.bellFeatures
+        runtime.playBell(features)
+        guard !isFocused(view) else { return }
+        if features.contains(.attention) { NSApp.requestUserAttention(.informationalRequest) }
+        if features.contains(.title) {
+            view.bell = true
+            refreshBar()
+        }
+    }
+
+    // The threshold is Ghostty's default: notify-on-command-finish-after is a duration, which the C config API cannot read.
+    private static let commandFinishThreshold: UInt64 = 5_000_000_000
+
+    private func commandFinished(_ view: TerminalView, exitCode: Int16, duration: UInt64) {
+        let mode = runtime.commandFinishMode
+        guard mode != .never, duration >= Self.commandFinishThreshold, mode == .always || !isFocused(view) else { return }
+        let actions = runtime.commandFinishActions
+        if actions.contains(.bell) { ringBell(view) }
+        guard actions.contains(.notify) else { return }
+        let seconds = Int(duration / 1_000_000_000)
+        let elapsed = seconds >= 60 ? "\(seconds / 60)m \(seconds % 60)s" : "\(seconds)s"
+        let title = exitCode > 0 ? "Command failed (exit \(exitCode))" : "Command finished"
+        notifier.post(title: title, body: "\(tab(for: view)?.title ?? "Terminal") · \(elapsed)", from: view.id)
+    }
+
+    private func reveal(viewID: UUID) {
+        show()
+        guard let tab = tabs.tabs.first(where: { $0.views.contains { $0.id == viewID } }),
+              let view = tab.views.first(where: { $0.id == viewID }),
+              let index = tabs.tabs.firstIndex(where: { $0 === tab }) else { return }
+        tab.focus(view)
+        tabs.select(at: index)
     }
 
     private func tab(for view: TerminalView?) -> Tab? {

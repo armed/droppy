@@ -36,11 +36,14 @@ final class TabItemView: NSView {
     private let closeButton = NSButton()
     private var hovered = false { didSet { closeButton.isHidden = !hovered } }
     private var palette: TabBarPalette
+    private let progressLayer = CALayer()
+    private var progress: TabProgress?
 
     init(palette: TabBarPalette) {
         self.palette = palette
         super.init(frame: .zero)
         wantsLayer = true
+        layer?.addSublayer(progressLayer)
         titleField.font = .systemFont(ofSize: 11.5)
         titleField.lineBreakMode = .byTruncatingTail
         titleField.alignment = .center
@@ -58,8 +61,9 @@ final class TabItemView: NSView {
         fatalError("init(coder:) is not supported")
     }
 
-    func configure(number: Int?, title: String, selected: Bool, palette: TabBarPalette) {
+    func configure(number: Int?, title: String, selected: Bool, progress: TabProgress?, palette: TabBarPalette) {
         self.palette = palette
+        self.progress = progress
         let color = selected ? palette.selectedText : palette.text
         let text = NSMutableAttributedString(string: title, attributes: [.foregroundColor: color])
         if let number {
@@ -75,10 +79,25 @@ final class TabItemView: NSView {
             attributes: [.foregroundColor: palette.text, .font: NSFont.systemFont(ofSize: 14)]
         )
         layer?.backgroundColor = (selected ? palette.selected : .clear).cgColor
+        updateProgress()
+    }
+
+    private func updateProgress() {
+        progressLayer.isHidden = progress == nil
+        guard let progress else { return }
+        let color: NSColor = switch progress.kind {
+        case .error: .systemRed
+        case .paused: .systemYellow
+        case .normal, .indeterminate: .controlAccentColor
+        }
+        progressLayer.backgroundColor = color.withAlphaComponent(progress.kind == .indeterminate ? 0.5 : 1).cgColor
+        let fraction = progress.kind == .indeterminate ? 1 : CGFloat(progress.percent ?? 100) / 100
+        progressLayer.frame = NSRect(x: 0, y: 0, width: bounds.width * min(max(fraction, 0), 1), height: 2)
     }
 
     override func layout() {
         super.layout()
+        updateProgress()
         let inset: CGFloat = 22
         closeButton.frame = NSRect(x: 4, y: 0, width: 18, height: bounds.height)
         titleField.sizeToFit()
@@ -183,7 +202,7 @@ final class TabBarView: NSView {
         fatalError("init(coder:) is not supported")
     }
 
-    func update(titles: [String], selected: Int, palette: TabBarPalette) {
+    func update(titles: [String], progress: [TabProgress?], selected: Int, palette: TabBarPalette) {
         self.palette = palette
         layer?.backgroundColor = palette.bar.cgColor
         plusButton.attributedTitle = NSAttributedString(
@@ -197,7 +216,7 @@ final class TabBarView: NSView {
             items.append(item)
         }
         for (index, item) in items.enumerated() {
-            item.configure(number: Self.shortcutNumber(at: index, count: titles.count), title: titles[index], selected: index == selected, palette: palette)
+            item.configure(number: Self.shortcutNumber(at: index, count: titles.count), title: titles[index], selected: index == selected, progress: progress[index], palette: palette)
             item.onSelect = { [weak self] in self?.onSelect?(index) }
             item.onClose = { [weak self] in self?.onClose?(index) }
             item.onRename = { [weak self] in self?.onRename?(index) }

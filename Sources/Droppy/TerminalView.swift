@@ -15,6 +15,9 @@ final class TerminalView: NSView {
     var keyTextAccumulator: [String]?
     private var focused = false
 
+    let id = UUID()
+    var bell = false
+    var progress: TabProgress?
     var title = ""
     var pwd: String?
 

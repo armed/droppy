@@ -43,6 +43,28 @@ enum TerminalAction {
     case reloadConfig
     case undo
     case redo
+    case bell
+    case notify(title: String, body: String)
+    case commandFinished(exitCode: Int16, duration: UInt64)
+    case progress(TabProgress?)
+}
+
+struct BellFeatures: OptionSet {
+    let rawValue: UInt32
+    static let system = BellFeatures(rawValue: 1 << 0)
+    static let audio = BellFeatures(rawValue: 1 << 1)
+    static let attention = BellFeatures(rawValue: 1 << 2)
+    static let title = BellFeatures(rawValue: 1 << 3)
+}
+
+enum CommandFinishMode: String {
+    case never, unfocused, always
+}
+
+struct CommandFinishActions: OptionSet {
+    let rawValue: UInt32
+    static let bell = CommandFinishActions(rawValue: 1 << 0)
+    static let notify = CommandFinishActions(rawValue: 1 << 1)
 }
 
 enum GhosttyError: Error {
@@ -70,6 +92,53 @@ final class GhosttyRuntime {
         let key = "undo-timeout"
         guard let config, ghostty_config_get(config, &milliseconds, key, UInt(key.utf8.count)) else { return 5 }
         return TimeInterval(milliseconds) / 1000
+    }
+
+    var bellFeatures: BellFeatures {
+        var bits: UInt32 = 0
+        let key = "bell-features"
+        guard let config, ghostty_config_get(config, &bits, key, UInt(key.utf8.count)) else { return [.attention, .title] }
+        return BellFeatures(rawValue: bits)
+    }
+
+    var commandFinishMode: CommandFinishMode {
+        var name: UnsafePointer<CChar>?
+        let key = "notify-on-command-finish"
+        guard let config, ghostty_config_get(config, &name, key, UInt(key.utf8.count)), let name else { return .never }
+        return CommandFinishMode(rawValue: String(cString: name)) ?? .never
+    }
+
+    var commandFinishActions: CommandFinishActions {
+        var bits: UInt32 = 0
+        let key = "notify-on-command-finish-action"
+        guard let config, ghostty_config_get(config, &bits, key, UInt(key.utf8.count)) else { return .bell }
+        return CommandFinishActions(rawValue: bits)
+    }
+
+    private var bellAudioPath: String? {
+        var path = ghostty_config_path_s()
+        let key = "bell-audio-path"
+        guard let config, ghostty_config_get(config, &path, key, UInt(key.utf8.count)), let raw = path.path else { return nil }
+        return (String(cString: raw) as NSString).expandingTildeInPath
+    }
+
+    private var bellAudioVolume: Float {
+        var volume = 0.5
+        let key = "bell-audio-volume"
+        guard let config, ghostty_config_get(config, &volume, key, UInt(key.utf8.count)) else { return 0.5 }
+        return Float(min(max(volume, 0), 1))
+    }
+
+    private var bellSound: NSSound?
+
+    func playBell(_ features: BellFeatures) {
+        if features.contains(.audio), let path = bellAudioPath, let sound = NSSound(contentsOfFile: path, byReference: true) {
+            sound.volume = bellAudioVolume
+            bellSound = sound
+            sound.play()
+        } else if features.contains(.system) || features.contains(.audio) {
+            NSSound.beep()
+        }
     }
 
     var backgroundOpacity: CGFloat {
@@ -329,6 +398,27 @@ final class GhosttyRuntime {
             case GHOSTTY_ACTION_SECURE_INPUT:
                 SecureInput.shared.set(action.action.secure_input)
                 return true
+            case GHOSTTY_ACTION_RING_BELL:
+                return runtime.onAction?(.bell, view) ?? false
+            case GHOSTTY_ACTION_DESKTOP_NOTIFICATION:
+                let notification = action.action.desktop_notification
+                let title = notification.title.map { String(cString: $0) } ?? ""
+                let body = notification.body.map { String(cString: $0) } ?? ""
+                return runtime.onAction?(.notify(title: title, body: body), view) ?? false
+            case GHOSTTY_ACTION_COMMAND_FINISHED:
+                let finished = action.action.command_finished
+                return runtime.onAction?(.commandFinished(exitCode: finished.exit_code, duration: finished.duration), view) ?? false
+            case GHOSTTY_ACTION_PROGRESS_REPORT:
+                let report = action.action.progress_report
+                let percent = report.progress >= 0 ? Int(report.progress) : nil
+                let progress: TabProgress? = switch report.state {
+                case GHOSTTY_PROGRESS_STATE_SET: TabProgress(kind: .normal, percent: percent)
+                case GHOSTTY_PROGRESS_STATE_ERROR: TabProgress(kind: .error, percent: percent)
+                case GHOSTTY_PROGRESS_STATE_INDETERMINATE: TabProgress(kind: .indeterminate, percent: nil)
+                case GHOSTTY_PROGRESS_STATE_PAUSE: TabProgress(kind: .paused, percent: percent)
+                default: nil
+                }
+                return runtime.onAction?(.progress(progress), view) ?? false
             case GHOSTTY_ACTION_QUIT:
                 return runtime.onAction?(.quit, view) ?? false
             default:

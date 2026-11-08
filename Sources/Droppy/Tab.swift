@@ -1,5 +1,11 @@
 import AppKit
 
+struct TabProgress: Equatable {
+    enum Kind { case normal, error, indeterminate, paused }
+    let kind: Kind
+    let percent: Int?
+}
+
 @MainActor
 final class Tab {
     private var tree: SplitNode<TerminalView>
@@ -25,6 +31,9 @@ final class Tab {
     var contentView: NSView { container }
 
     var userTitle: String?
+
+    var hasBell: Bool { views.contains(where: \.bell) }
+    var progress: TabProgress? { focusedView.progress ?? views.lazy.compactMap(\.progress).first }
 
     var title: String {
         if let userTitle { return userTitle }

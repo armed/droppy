@@ -13,6 +13,7 @@ A native macOS drop-down terminal built on libghostty, the terminal core of Ghos
 - Position (top, bottom, left, right, center), alignment and size of the panel.
 - Height changes with the mouse (drag the panel's inner edge) and with cmd+j / cmd+k.
 - Scrollback search, per pane.
+- Bell (`bell-features`), desktop notifications (OSC 9 and 777), command-finished notifications (`notify-on-command-finish`) and tab progress (OSC 9;4).
 - Plain-text config with live reload.
 - All Ghostty options and themes.
 
@@ -102,7 +103,6 @@ These are Ghostty's default macOS bindings, as far as Droppy acts on them; rebin
 
 ## Known limitations
 
-- No notifications and no bell.
 - Links with custom URL schemes are not opened.
 - The app is ad-hoc signed, so Gatekeeper warns on other Macs.
 - cmd+k and cmd+j resize the panel; they replace Ghostty's clear-screen and scroll-to-selection.
