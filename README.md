@@ -80,6 +80,7 @@ These are Ghostty's default macOS bindings, as far as Droppy acts on them; rebin
 | cmd+t | New tab |
 | cmd+1 ... cmd+8, cmd+9 | Go to tab, go to the last tab |
 | cmd+shift+[ , cmd+shift+] | Previous, next tab |
+| (unbound) | `move_tab:N` moves the tab by N positions, wrapping around; bind it with `keybind`, e.g. `keybind = cmd+shift+left=move_tab:-1` |
 | double-click a tab | Rename it; an empty name restores the automatic title (also `prompt_surface_title`) |
 | cmd+w | Close the focused split or tab |
 | cmd+opt+w | Close the tab |

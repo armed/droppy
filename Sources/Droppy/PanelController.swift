@@ -313,6 +313,8 @@ final class PanelController: NSObject, NSWindowDelegate {
             }
         case .gotoTab(let target):
             DispatchQueue.main.async { self.gotoTab(target) }
+        case .moveTab(let offset):
+            DispatchQueue.main.async { self.moveTab(for: view, by: offset) }
         case .newSplit(let direction):
             DispatchQueue.main.async {
                 guard let tab = self.tab(for: view) else { return }
@@ -414,6 +416,13 @@ final class PanelController: NSObject, NSWindowDelegate {
         case -3: tabs.selectLast()
         default: tabs.select(at: Int(target) - 1)
         }
+    }
+
+    private func moveTab(for view: TerminalView?, by offset: Int) {
+        let count = tabs.tabs.count
+        guard count > 1, let tab = tab(for: view), let index = tabs.tabs.firstIndex(where: { $0 === tab }) else { return }
+        let destination = ((index + offset) % count + count) % count
+        tabs.move(from: index, to: destination)
     }
 
     private func tabsToClose(_ mode: CloseTabMode, relativeTo tab: Tab) -> [Tab] {

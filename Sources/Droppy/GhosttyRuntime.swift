@@ -31,6 +31,7 @@ enum TerminalAction {
     case newTab
     case closeTab(CloseTabMode)
     case gotoTab(Int32)
+    case moveTab(Int)
     case setTitle(String)
     case promptTitle
     case newSplit(SplitDirection)
@@ -327,6 +328,8 @@ final class GhosttyRuntime {
                 return runtime.onAction?(.closeTab(mode), view) ?? false
             case GHOSTTY_ACTION_GOTO_TAB:
                 return runtime.onAction?(.gotoTab(action.action.goto_tab.rawValue), view) ?? false
+            case GHOSTTY_ACTION_MOVE_TAB:
+                return runtime.onAction?(.moveTab(action.action.move_tab.amount), view) ?? false
             case GHOSTTY_ACTION_SET_TITLE:
                 guard let title = action.action.set_title.title else { return false }
                 return runtime.onAction?(.setTitle(String(cString: title)), view) ?? false
