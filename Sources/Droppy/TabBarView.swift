@@ -50,10 +50,17 @@ final class TabItemView: NSView {
         fatalError("init(coder:) is not supported")
     }
 
-    func configure(title: String, selected: Bool, palette: TabBarPalette) {
+    func configure(number: Int?, title: String, selected: Bool, palette: TabBarPalette) {
         self.palette = palette
-        titleField.stringValue = title
-        titleField.textColor = selected ? palette.selectedText : palette.text
+        let color = selected ? palette.selectedText : palette.text
+        let text = NSMutableAttributedString(string: title, attributes: [.foregroundColor: color])
+        if let number {
+            text.insert(
+                NSAttributedString(string: "\(number) ", attributes: [.foregroundColor: palette.text.withAlphaComponent(0.35)]),
+                at: 0
+            )
+        }
+        titleField.attributedStringValue = text
         closeButton.contentTintColor = palette.text
         closeButton.attributedTitle = NSAttributedString(
             string: "×",
@@ -139,12 +146,18 @@ final class TabBarView: NSView {
             items.append(item)
         }
         for (index, item) in items.enumerated() {
-            item.configure(title: titles[index], selected: index == selected, palette: palette)
+            item.configure(number: Self.shortcutNumber(at: index, count: titles.count), title: titles[index], selected: index == selected, palette: palette)
             item.onSelect = { [weak self] in self?.onSelect?(index) }
             item.onClose = { [weak self] in self?.onClose?(index) }
             item.needsLayout = true
         }
         needsLayout = true
+    }
+
+    // Ghostty binds cmd+1...8 to those tabs and cmd+9 to the last one, so with 9+ tabs only the last is reachable as 9.
+    private static func shortcutNumber(at index: Int, count: Int) -> Int? {
+        if index < 8 { return index + 1 }
+        return index == count - 1 ? 9 : nil
     }
 
     override func layout() {
