@@ -26,6 +26,7 @@ final class PanelController: NSObject, NSWindowDelegate {
     private var borderColor: RGBA?
     private var cornerRadius: CGFloat = 0
     private var cornerCorners = PanelCorners.all
+    private var opacity: CGFloat = 1
     private var previousApp: NSRunningApplication?
     private var animationToken = 0
     private var animationsInFlight = 0
@@ -92,12 +93,12 @@ final class PanelController: NSObject, NSWindowDelegate {
         // Only popUpMenu and above can render over the menu bar and off-screen during the slide.
         panel.level = .popUpMenu
         panel.setFrame(geometry.fadesInPlace ? shown : hidden, display: false)
-        panel.alphaValue = geometry.fadesInPlace ? 0 : 1
+        panel.alphaValue = geometry.fadesInPlace ? 0 : opacity
         if tabs.isEmpty { tabs.newTab(inheriting: nil) }
         panel.makeKeyAndOrderFront(nil)
         refreshTabs()
 
-        animate(to: shown, alpha: 1) { [weak self] in
+        animate(to: shown, alpha: opacity) { [weak self] in
             guard let self, self.isVisible, token == self.animationToken else { return }
             // Floating (rather than popUpMenu) lets IME candidate windows appear above the panel.
             self.panel.level = .floating
@@ -129,7 +130,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         let hidden = geometry.hiddenFrame(for: panel.frame, on: screen)
         panel.level = .popUpMenu
 
-        animate(to: hidden, alpha: geometry.fadesInPlace ? 0 : 1) { [weak self] in
+        animate(to: hidden, alpha: geometry.fadesInPlace ? 0 : opacity) { [weak self] in
             guard let self, !self.isVisible, token == self.animationToken else { return }
             self.refreshTabs()
             self.panel.orderOut(nil)
@@ -226,6 +227,8 @@ final class PanelController: NSObject, NSWindowDelegate {
         borderColor = config.borderColor
         cornerRadius = config.cornerRadius
         cornerCorners = config.cornerRadiusCorners
+        opacity = CGFloat(config.opacity)
+        if isVisible && animationsInFlight == 0 { panel.alphaValue = opacity }
         refreshAppearance()
         applyHeight()
     }
@@ -252,7 +255,7 @@ final class PanelController: NSObject, NSWindowDelegate {
         applyDividerColor()
         let opaque = runtime.backgroundOpacity >= 1
         let rounded = cornerRadius > 0 && !cornerCorners.isEmpty
-        panel.isOpaque = opaque && !rounded
+        panel.isOpaque = opaque && !rounded && opacity >= 1
         panel.backgroundColor = panel.isOpaque ? .black : .clear
         refreshBar()
         updateBorder()

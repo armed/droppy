@@ -44,6 +44,7 @@ struct Config: Equatable {
     var borderColor: RGBA?
     var cornerRadius: CGFloat = 0
     var cornerRadiusCorners = PanelCorners.all
+    var opacity: Double = 1
     var shadow = true
     var animationDuration: TimeInterval = 0.2
     var autoEqualizeSplits = false
@@ -106,6 +107,9 @@ enum ConfigParser {
     # Which corners are rounded: all, none, or a comma-separated list of top-left, top-right, bottom-left, bottom-right.
     # corner-radius-corners = all
 
+    # Opacity of the whole panel, text and border included, 0.1 to 1.
+    # opacity = 1
+
     # A drop shadow around the panel.
     # shadow = true
 
@@ -130,7 +134,7 @@ enum ConfigParser {
 
     static let ownedKeys: Set<String> = ["hotkey", "position", "alignment", "width", "height", "tab-bar", "hide-on-focus-loss",
                                        "border-width", "border-sides", "border-color", "corner-radius",
-                                       "corner-radius-corners", "shadow", "animation-duration",
+                                       "corner-radius-corners", "opacity", "shadow", "animation-duration",
                                        "auto-equalize-splits", "launch-at-login"]
 
     // Ghostty resolves relative paths against the file it loads, which for the forwarded copy would be the
@@ -220,6 +224,9 @@ enum ConfigParser {
         case "corner-radius-corners":
             guard let corners = parseCorners(value) else { return "invalid corner-radius-corners" }
             config.cornerRadiusCorners = corners
+        case "opacity":
+            guard let opacity = Double(value), opacity.isFinite, (0.1...1).contains(opacity) else { return "invalid opacity" }
+            config.opacity = opacity
         case "shadow":
             guard let flag = ["true": true, "false": false][value.lowercased()] else { return "expected true or false" }
             config.shadow = flag
