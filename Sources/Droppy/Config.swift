@@ -125,11 +125,10 @@ enum ConfigParser {
 
     """
 
-    // The reference part is generated from Ghostty's documentation at build time.
     static var template: String {
-        let generated = Bundle.main.url(forResource: "config", withExtension: "template")
+        let reference = Bundle.main.url(forResource: "config", withExtension: "template")
             .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
-        return header + (generated ?? "")
+        return header + (reference ?? "")
     }
 
     static let ownedKeys: Set<String> = ["hotkey", "position", "alignment", "width", "height", "tab-bar", "hide-on-focus-loss",

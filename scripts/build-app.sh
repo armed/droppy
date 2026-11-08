@@ -5,7 +5,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 config="${1:-release}"
 app="$root/.build/Droppy.app"
 
-if [ ! -d "$root/Vendor/GhosttyKit.xcframework" ] || [ ! -d "$root/Vendor/share" ] || [ ! -f "$root/Vendor/share/droppy/config.template" ]; then
+if [ ! -d "$root/Vendor/GhosttyKit.xcframework" ] || [ ! -d "$root/Vendor/share" ]; then
   echo "Vendor/ is incomplete; run scripts/build-ghostty.sh first" >&2
   exit 1
 fi
@@ -22,7 +22,7 @@ cp "$bin" "$app/Contents/MacOS/Droppy"
 [ "$config" = release ] && strip -x "$app/Contents/MacOS/Droppy"
 cp -R Vendor/share/terminfo "$app/Contents/Resources/"
 cp -R Vendor/share/ghostty "$app/Contents/Resources/"
-cp Vendor/share/droppy/config.template "$app/Contents/Resources/"
+cp Resources/config.template "$app/Contents/Resources/"
 cp Resources/AppIcon.icns Resources/TrayIcon.png "Resources/TrayIcon@2x.png" "$app/Contents/Resources/"
 
 cat > "$app/Contents/Info.plist" <<'PLIST'

@@ -95,7 +95,7 @@ font-size = 14
 | Secure Keyboard Entry | Turns secure input on or off. Droppy releases it when the panel hides or when Droppy is not active. Keybind action: `toggle_secure_input` |
 | Open Config | Opens the config file |
 | Reload Config | Reads the config file again |
-| Open Config Reference | Opens a read-only copy of the template. The template lists all Ghostty options and their defaults |
+| Open Config Reference | Opens a read-only copy of the template. The template lists the Ghostty options that Droppy reads, and their defaults |
 
 If a config line has an error, the menu shows "Config line N: ...".
 
