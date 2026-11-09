@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 
 @MainActor
 final class JumpMode: PanelMode {
@@ -9,6 +10,10 @@ final class JumpMode: PanelMode {
     private var tab: Tab?
     private var tabs: [Character: Int] = [:]
     private var panes: [Character: TerminalView] = [:]
+
+    private static let arrowKeys: [Int: SplitDirection] = [
+        kVK_UpArrow: .up, kVK_DownArrow: .down, kVK_LeftArrow: .left, kVK_RightArrow: .right,
+    ]
 
     init(host: PanelModeHost) {
         self.host = host
@@ -33,12 +38,32 @@ final class JumpMode: PanelMode {
         host.setTabOverlays(Dictionary(uniqueKeysWithValues: tabs.map { ($1, TabJumpBadge(letter: String($0))) }))
         let assigned = zip(Self.panePool, tab?.panesByPosition ?? [])
         panes = Dictionary(uniqueKeysWithValues: assigned.map { ($0, $1) })
-        tab?.setPaneOverlays(assigned.map { ($1, JumpBadge(letter: String($0), path: $1.pwd)) })
+        updateBadges()
+    }
+
+    private func updateBadges() {
+        guard let tab else { return }
+        let overlays = panes.sorted { $0.key < $1.key }.map { letter, view in
+            (view, JumpBadge(letter: String(letter), path: view.pwd, arrows: arrows(for: view)))
+        }
+        tab.setPaneOverlays(overlays)
+    }
+
+    private func arrows(for view: TerminalView) -> Set<SplitDirection> {
+        guard let tab, view === tab.focusedView else { return [] }
+        return Set([SplitDirection.up, .down, .left, .right].filter { tab.neighbor(of: view, $0) != nil })
     }
 
     func handleKey(_ event: NSEvent) -> ModeAction {
-        guard event.significantModifiers.isEmpty,
-              let letter = KeyboardLayout.latinLetters[Int(event.keyCode)] else { return .stay }
+        let modifiers = event.significantModifiers.subtracting([.numericPad, .function])
+        guard modifiers.isEmpty else { return .stay }
+        if let direction = Self.arrowKeys[Int(event.keyCode)] {
+            if let tab, tab.swapPane(tab.focusedView, toward: direction) {
+                updateBadges()
+            }
+            return .stay
+        }
+        guard let letter = KeyboardLayout.latinLetters[Int(event.keyCode)] else { return .stay }
         if let index = tabs[letter] {
             host.selectTab(at: index)
         } else if let view = panes[letter] {
@@ -54,12 +79,13 @@ final class JumpMode: PanelMode {
     private func jump(to view: TerminalView) -> ModeAction {
         if tab?.focusedView === view { return .exit }
         host.focusPane(view)
+        updateBadges()
         return .stay
     }
 }
 
 final class JumpBadge: NSView {
-    init(letter: String, path: String?) {
+    init(letter: String, path: String?, arrows: Set<SplitDirection> = []) {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.backgroundColor = NSColor.black.withAlphaComponent(0.72).cgColor
@@ -81,7 +107,13 @@ final class JumpBadge: NSView {
         stack.orientation = .vertical
         stack.alignment = .centerX
         stack.spacing = 2
-        stack.edgeInsets = NSEdgeInsets(top: 10, left: 18, bottom: 12, right: 18)
+        let arrowSize: CGFloat = 22
+        func inset(_ base: CGFloat, _ direction: SplitDirection) -> CGFloat {
+            arrows.contains(direction) ? base + arrowSize : base
+        }
+        stack.edgeInsets = NSEdgeInsets(
+            top: inset(10, .up), left: inset(18, .left), bottom: inset(12, .down), right: inset(18, .right)
+        )
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
         NSLayoutConstraint.activate([
@@ -90,6 +122,25 @@ final class JumpBadge: NSView {
             stack.topAnchor.constraint(equalTo: topAnchor),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
+
+        let glyphs: [SplitDirection: String] = [.up: "▲", .down: "▼", .left: "◀", .right: "▶"]
+        for direction in arrows {
+            let arrow = NSTextField(labelWithString: glyphs[direction] ?? "")
+            arrow.font = .systemFont(ofSize: 14, weight: .bold)
+            arrow.textColor = .white
+            arrow.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(arrow)
+            switch direction {
+            case .up, .down:
+                arrow.centerXAnchor.constraint(equalTo: centerXAnchor).isActive = true
+                (direction == .up ? arrow.topAnchor.constraint(equalTo: topAnchor, constant: 4)
+                    : arrow.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4)).isActive = true
+            case .left, .right:
+                arrow.centerYAnchor.constraint(equalTo: centerYAnchor).isActive = true
+                (direction == .left ? arrow.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6)
+                    : arrow.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6)).isActive = true
+            }
+        }
     }
 
     required init?(coder: NSCoder) {

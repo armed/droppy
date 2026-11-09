@@ -139,8 +139,9 @@ Droppy uses the Ghostty default macOS bindings for the actions it supports. Drop
 
 1. Double-tap cmd.
 2. Each tab shows a letter from the top row (q to p). Each split in the current tab shows a letter and its directory.
-3. Push a tab letter to go to that tab. Push a split letter to focus that split.
-4. To stop jump mode, double-tap cmd again or push esc.
+3. Push a tab letter to go to that tab. Push a split letter to focus that split. Push the same letter again to stop jump mode.
+4. After you focus a split, arrows show the directions where a neighbor exists. Push an arrow key to swap this split with its neighbor. The letter stays with the moved split.
+5. To stop jump mode, double-tap cmd again or push esc.
 
 ## Known limitations
 

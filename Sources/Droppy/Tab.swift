@@ -103,6 +103,18 @@ final class Tab {
         refresh()
     }
 
+    func neighbor(of view: TerminalView, _ direction: SplitDirection) -> TerminalView? {
+        SplitNode<TerminalView>.neighbor(of: view, direction, in: tree.layout(in: container.bounds).panes)
+    }
+
+    func swapPane(_ view: TerminalView, toward direction: SplitDirection) -> Bool {
+        guard let other = neighbor(of: view, direction) else { return false }
+        tree = tree.map { $0 === view ? other : $0 === other ? view : $0 }
+        zoomedView = nil
+        refresh()
+        return true
+    }
+
     func resizeSplit(_ direction: SplitDirection, amount: CGFloat) {
         let result = tree.resizing(focusedView, direction: direction, amount: amount, in: container.bounds)
         guard result.handled else { return }
