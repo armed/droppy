@@ -31,7 +31,34 @@ struct PanelGeometry {
     }
 
     func shownFrame(on screen: NSScreen) -> NSRect {
-        shownFrame(in: screen.visibleFrame)
+        shownFrame(in: Self.usableArea(on: screen))
+    }
+
+    // visibleFrame keeps reserving the Dock's edge on a fullscreen space even though the Dock is not shown there.
+    static func usableArea(on screen: NSScreen) -> NSRect {
+        let visible = screen.visibleFrame
+        guard hasFullscreenWindow(on: screen) else { return visible }
+        let full = screen.frame
+        return NSRect(x: full.minX, y: full.minY, width: full.width, height: visible.maxY - full.minY)
+    }
+
+    private static func hasFullscreenWindow(on screen: NSScreen) -> Bool {
+        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly], kCGNullWindowID) as? [[String: Any]],
+              let primary = NSScreen.screens.first else { return false }
+        let full = screen.frame
+        // CGWindow bounds are top-left based relative to the primary screen.
+        let target = CGRect(x: full.minX, y: primary.frame.maxY - full.maxY, width: full.width, height: full.height)
+        // On a notched display a fullscreen window starts below the notch, so its top edge is not the screen's.
+        let topInset = max(screen.safeAreaInsets.top, full.maxY - screen.visibleFrame.maxY)
+        let ownPID = ProcessInfo.processInfo.processIdentifier
+        return windows.contains { info in
+            guard (info[kCGWindowLayer as String] as? Int) == 0,
+                  (info[kCGWindowOwnerPID as String] as? Int32) != ownPID,
+                  let dict = info[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: dict) else { return false }
+            return bounds.minX == target.minX && bounds.width == target.width && bounds.maxY == target.maxY
+                && bounds.height >= target.height - topInset - 1
+        }
     }
 
     func hiddenFrame(for shown: NSRect, on screen: NSScreen) -> NSRect {

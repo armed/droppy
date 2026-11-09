@@ -180,7 +180,7 @@ final class PanelController: NSObject, NSWindowDelegate, PanelModeHost {
     private func dragResize(toCursorY y: CGFloat) {
         guard let screen = shownScreen else { return }
         isResizing = true
-        geometry.setHeightFraction(geometry.heightFraction(forCursorY: y, in: screen.visibleFrame))
+        geometry.setHeightFraction(geometry.heightFraction(forCursorY: y, in: PanelGeometry.usableArea(on: screen)))
         applyHeight()
     }
 
