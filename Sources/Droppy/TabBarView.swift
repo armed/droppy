@@ -32,6 +32,7 @@ final class TabItemView: NSView {
     private var pressX: CGFloat?
     private var dragging = false
 
+    private static let font = NSFont.systemFont(ofSize: 11.5)
     private let titleField = NSTextField(labelWithString: "")
     private let closeButton = NSButton()
     private var hovered = false { didSet { closeButton.isHidden = !hovered } }
@@ -44,7 +45,6 @@ final class TabItemView: NSView {
         super.init(frame: .zero)
         wantsLayer = true
         layer?.addSublayer(progressLayer)
-        titleField.font = .systemFont(ofSize: 11.5)
         titleField.lineBreakMode = .byTruncatingTail
         titleField.alignment = .center
         addSubview(titleField)
@@ -61,11 +61,11 @@ final class TabItemView: NSView {
         fatalError("init(coder:) is not supported")
     }
 
-    func configure(number: Int?, title: String, selected: Bool, progress: TabProgress?, palette: TabBarPalette) {
+    func configure(number: Int?, label: PaneLabel, selected: Bool, progress: TabProgress?, palette: TabBarPalette) {
         self.palette = palette
         self.progress = progress
         let color = selected ? palette.selectedText : palette.text
-        let text = NSMutableAttributedString(string: title, attributes: [.foregroundColor: color])
+        let text = NSMutableAttributedString(attributedString: label.attributed(font: Self.font, color: color))
         if let number {
             text.insert(
                 NSAttributedString(string: "\(number) ", attributes: [.foregroundColor: palette.text.withAlphaComponent(0.35)]),
@@ -79,6 +79,7 @@ final class TabItemView: NSView {
             attributes: [.foregroundColor: palette.text, .font: NSFont.systemFont(ofSize: 14)]
         )
         layer?.backgroundColor = (selected ? palette.selected : .clear).cgColor
+        needsLayout = true
         updateProgress()
     }
 
@@ -210,21 +211,22 @@ final class TabBarView: NSView {
         needsLayout = true
     }
 
-    func update(titles: [String], progress: [TabProgress?], selected: Int, palette: TabBarPalette) {
+    func update(labels: [PaneLabel], tooltips: [String?], progress: [TabProgress?], selected: Int, palette: TabBarPalette) {
         self.palette = palette
         layer?.backgroundColor = palette.bar.cgColor
         plusButton.attributedTitle = NSAttributedString(
             string: "+",
             attributes: [.foregroundColor: palette.text, .font: NSFont.systemFont(ofSize: 16)]
         )
-        while items.count > titles.count { items.removeLast().removeFromSuperview() }
-        while items.count < titles.count {
+        while items.count > labels.count { items.removeLast().removeFromSuperview() }
+        while items.count < labels.count {
             let item = TabItemView(palette: palette)
             addSubview(item)
             items.append(item)
         }
         for (index, item) in items.enumerated() {
-            item.configure(number: Self.shortcutNumber(at: index, count: titles.count), title: titles[index], selected: index == selected, progress: progress[index], palette: palette)
+            item.configure(number: Self.shortcutNumber(at: index, count: labels.count), label: labels[index], selected: index == selected, progress: progress[index], palette: palette)
+            item.toolTip = tooltips[index]
             item.onSelect = { [weak self] in self?.onSelect?(index) }
             item.onClose = { [weak self] in self?.onClose?(index) }
             item.onRename = { [weak self] in self?.onRename?(index) }

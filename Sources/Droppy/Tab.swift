@@ -35,9 +35,17 @@ final class Tab {
     var hasBell: Bool { views.contains(where: \.bell) }
     var progress: TabProgress? { focusedView.progress ?? views.lazy.compactMap(\.progress).first }
 
-    var title: String {
-        if let userTitle { return userTitle }
-        return focusedView.title.isEmpty ? "Terminal" : focusedView.title
+    var label: PaneLabel {
+        if let userTitle { return PaneLabel(folder: userTitle) }
+        if let label = focusedView.paneLabel { return label }
+        return PaneLabel(folder: focusedView.title.isEmpty ? "Terminal" : focusedView.title)
+    }
+
+    var title: String { label.plain }
+
+    var tooltip: String? {
+        guard let pwd = focusedView.pwd, !pwd.isEmpty else { return nil }
+        return pwd
     }
 
     func snapshot() -> (tree: SplitNode<PaneState>, focusedIndex: Int) {

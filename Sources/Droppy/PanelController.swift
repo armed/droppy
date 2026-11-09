@@ -296,7 +296,12 @@ final class PanelController: NSObject, NSWindowDelegate, PanelModeHost {
     private func refreshBar() {
         content.tabBarVisible = tabs.tabs.count > 1
         content.tabBar.update(
-            titles: tabs.tabs.map { $0.hasBell ? "🔔 \($0.title)" : $0.title },
+            labels: tabs.tabs.map { tab in
+                var label = tab.label
+                if tab.hasBell { label.prefix = "🔔 " }
+                return label
+            },
+            tooltips: tabs.tabs.map(\.tooltip),
             progress: tabs.tabs.map(\.progress),
             selected: tabs.selectedIndex,
             palette: TabBarPalette(terminalBackground: runtime.backgroundColor, opacity: runtime.backgroundOpacity)
@@ -341,6 +346,8 @@ final class PanelController: NSObject, NSWindowDelegate, PanelModeHost {
         switch action {
         case .setTitle(let title):
             view?.title = title
+            refreshBar()
+        case .pwdChanged:
             refreshBar()
         case .promptTitle:
             guard let tab = view.flatMap({ tabs.tab(containing: $0) }) ?? tabs.selected else { return false }

@@ -18,11 +18,17 @@ final class TerminalView: NSView {
     let id = UUID()
     var bell = false
     var progress: TabProgress?
-    var title = ""
-    var pwd: String?
+    var title = "" {
+        didSet {
+            trackRunningCommand()
+            updatePaneTitle()
+        }
+    }
+    var pwd: String? { didSet { updatePaneTitle() } }
 
     let scrollbar = ScrollbarView()
     let linkStatus = LinkStatusView()
+    private let paneTitle = PaneTitleView()
 
     var searchBar: SearchBarView?
     var searchDebounce: DispatchWorkItem?
@@ -64,6 +70,7 @@ final class TerminalView: NSView {
         scrollbar.onScrollToRow = { [weak self] in self?.perform("scroll_to_row:\($0)") }
         addSubview(scrollbar)
         addSubview(linkStatus)
+        addSubview(paneTitle)
         updateTrackingAreas()
         registerForDrops()
     }
@@ -71,6 +78,32 @@ final class TerminalView: NSView {
     func scrollbarChanged(total: UInt64, offset: UInt64, len: UInt64) {
         scrollbar.update(total: total, offset: offset, len: len)
         scrollbar.isHidden = scrollbar.isHidden || runtime?.scrollbarHidden == true
+        updatePaneTitle()
+    }
+
+    private var runningCommand: String?
+
+    // Shell integration sets the title to the command line and back to a path at the prompt; programs such as nvim
+    // then overwrite it with their own long title, so only the first non-path title of a run is kept.
+    private func trackRunningCommand() {
+        guard let first = title.first, !"~/…".contains(first) else {
+            runningCommand = nil
+            return
+        }
+        guard runningCommand == nil, let word = title.split(separator: " ").first else { return }
+        runningCommand = (String(word) as NSString).lastPathComponent
+    }
+
+    var paneLabel: PaneLabel? {
+        guard let pwd, !pwd.isEmpty else { return nil }
+        let folder = pwd == "/" ? "/" : (pwd as NSString).lastPathComponent
+        return PaneLabel(folder: folder, process: runningCommand)
+    }
+
+    func updatePaneTitle() {
+        let text = searchBar == nil ? paneLabel : nil
+        let scrollbarWidth = scrollbar.isHidden ? 0 : ScrollbarView.width
+        paneTitle.show(text, in: bounds, avoiding: scrollbarWidth)
     }
 
     func linkHovered(_ url: String) {
@@ -102,6 +135,7 @@ final class TerminalView: NSView {
         super.setFrameSize(newSize)
         scrollbar.frame = NSRect(x: newSize.width - ScrollbarView.width, y: 0, width: ScrollbarView.width, height: newSize.height)
         syncSize()
+        updatePaneTitle()
     }
 
     override func viewDidMoveToWindow() {

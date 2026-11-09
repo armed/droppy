@@ -24,6 +24,7 @@ extension TerminalView {
         }
         bar.onKeyEquivalent = { [weak self] in self?.performBindingKey($0) ?? false }
         searchBar = bar
+        updatePaneTitle()
         container.addSubview(bar)
         container.relayout()
         if !needle.isEmpty {
@@ -41,6 +42,7 @@ extension TerminalView {
     func endSearch() {
         guard let bar = searchBar else { return }
         searchBar = nil
+        updatePaneTitle()
         searchDebounce?.cancel()
         searchDebounce = nil
         if bar.isEditing { window?.makeFirstResponder(self) }

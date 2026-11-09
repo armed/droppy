@@ -34,6 +34,7 @@ enum TerminalAction {
     case moveTab(Int)
     case floatPanel(ghostty_action_float_window_e)
     case setTitle(String)
+    case pwdChanged
     case promptTitle
     case newSplit(SplitDirection)
     case gotoSplit(SplitFocusTarget)
@@ -429,7 +430,7 @@ final class GhosttyRuntime {
             case GHOSTTY_ACTION_PWD:
                 guard let view, let pwd = action.action.pwd.pwd else { return false }
                 view.pwd = String(cString: pwd)
-                return true
+                return runtime.onAction?(.pwdChanged, view) ?? true
             case GHOSTTY_ACTION_UNDO:
                 return runtime.onAction?(.undo, view) ?? false
             case GHOSTTY_ACTION_REDO:
