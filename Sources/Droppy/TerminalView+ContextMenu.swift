@@ -7,6 +7,7 @@ extension TerminalView: NSMenuItemValidation {
         let menu = NSMenu()
         menu.addItem(item("Copy", #selector(copy(_:))))
         menu.addItem(item("Paste", #selector(paste(_:))))
+        menu.addItem(item("Clear Pane", #selector(clearPane(_:))))
         menu.addItem(.separator())
         menu.addItem(item("Split Right", #selector(splitRight(_:))))
         menu.addItem(item("Split Left", #selector(splitLeft(_:))))
@@ -32,6 +33,7 @@ extension TerminalView: NSMenuItemValidation {
         return true
     }
 
+    @objc private func clearPane(_ sender: Any?) { perform("clear_screen") }
     @objc private func splitRight(_ sender: Any?) { perform("new_split:right") }
     @objc private func splitLeft(_ sender: Any?) { perform("new_split:left") }
     @objc private func splitDown(_ sender: Any?) { perform("new_split:down") }
