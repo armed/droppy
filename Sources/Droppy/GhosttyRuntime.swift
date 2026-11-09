@@ -41,6 +41,7 @@ enum TerminalAction {
     case resizeSplit(SplitDirection, UInt16)
     case equalizeSplits
     case toggleSplitZoom
+    case toggleMaximize
     case quit
     case openConfig
     case reloadConfig
@@ -404,6 +405,8 @@ final class GhosttyRuntime {
                 return runtime.onAction?(.equalizeSplits, view) ?? false
             case GHOSTTY_ACTION_TOGGLE_SPLIT_ZOOM:
                 return runtime.onAction?(.toggleSplitZoom, view) ?? false
+            case GHOSTTY_ACTION_TOGGLE_FULLSCREEN, GHOSTTY_ACTION_TOGGLE_MAXIMIZE:
+                return runtime.onAction?(.toggleMaximize, view) ?? false
             case GHOSTTY_ACTION_START_SEARCH:
                 guard let view else { return false }
                 let needle = action.action.start_search.needle.map { String(cString: $0) } ?? ""

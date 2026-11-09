@@ -121,6 +121,7 @@ Droppy uses the Ghostty default macOS bindings for the actions it supports. Drop
 | cmd+ctrl+arrows | Resize the split |
 | cmd+ctrl+= | Equalize the splits |
 | cmd+shift+return | Zoom the split |
+| cmd+return | Make the panel fill the screen, or restore its size |
 | cmd+j, cmd+k | Make the panel taller, shorter |
 | cmd+c, cmd+v | Copy, paste |
 | cmd+=, cmd+-, cmd+0 | Font size larger, smaller, default |

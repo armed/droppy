@@ -9,6 +9,7 @@ struct PanelGeometry {
     var alignment: PanelAlignment = .center
     var widthFraction: CGFloat = 1.0
     var heightFraction: CGFloat = 0.4
+    var isMaximized = false
 
     // How the panel is anchored vertically: against the top or bottom of the area, or centred.
     private enum VerticalAnchor {
@@ -38,6 +39,7 @@ struct PanelGeometry {
     }
 
     func shownFrame(in area: NSRect) -> NSRect {
+        if isMaximized { return area }
         let size = NSSize(width: area.width * widthFraction, height: area.height * heightFraction)
         var origin = NSPoint(x: area.midX - size.width / 2, y: area.midY - size.height / 2)
         switch edge {
@@ -75,6 +77,7 @@ struct PanelGeometry {
     static let heightStep: CGFloat = 0.05
 
     mutating func setHeightFraction(_ fraction: CGFloat) {
+        isMaximized = false
         heightFraction = min(max(fraction, Self.heightRange.lowerBound), Self.heightRange.upperBound)
     }
 

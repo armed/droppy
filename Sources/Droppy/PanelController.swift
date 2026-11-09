@@ -386,6 +386,11 @@ final class PanelController: NSObject, NSWindowDelegate, PanelModeHost {
                 self.tab(for: view)?.toggleZoom()
                 self.refreshTabs()
             }
+        case .toggleMaximize:
+            DispatchQueue.main.async {
+                self.geometry.isMaximized.toggle()
+                self.applyHeight()
+            }
         case .reloadConfig:
             DispatchQueue.main.async { self.onReloadConfig?() }
         case .openConfig:
