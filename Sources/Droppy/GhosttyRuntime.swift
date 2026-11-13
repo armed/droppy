@@ -220,7 +220,7 @@ final class GhosttyRuntime {
     // Droppy's file is the only source: nothing under ~/.config/ghostty or Application Support is read.
     private static func makeConfig(_ settings: GhosttySettings) -> ghostty_config_t? {
         guard let config = ghostty_config_new() else { return nil }
-        if let path = writeFile(defaultKeybinds, name: "defaults") {
+        if let path = writeFile(defaults, name: "defaults") {
             ghostty_config_load_file(config, path)
         }
         if !settings.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, let path = writeFile(settings.text, name: "config") {
@@ -230,8 +230,8 @@ final class GhosttyRuntime {
         return config
     }
 
-    // Loaded before the user's file so its keybinds win; a separate file keeps the user's line numbers intact.
-    private static let defaultKeybinds = """
+    // Loaded before the user's file so its settings win; a separate file keeps the user's line numbers intact.
+    private static let defaults = """
     keybind = cmd+alt+left=move_tab:-1
     keybind = cmd+alt+right=move_tab:1
     keybind = cmd+alt+p=toggle_window_float_on_top
@@ -241,6 +241,7 @@ final class GhosttyRuntime {
     keybind = cmd+shift+right=goto_split:right
     keybind = cmd+shift+up=goto_split:up
     keybind = cmd+shift+down=goto_split:down
+    shell-integration-features = ssh-env,ssh-terminfo
     """
 
     // The C API only loads files. Keeping the user's line numbers makes Ghostty's diagnostics point at the real file.

@@ -1,0 +1,80 @@
+#!/bin/sh
+# Stand-in for `ghostty +ssh`, which the bundled shell integrations call via $GHOSTTY_BIN_DIR/ghostty.
+
+if [ "$1" != "+ssh" ]; then
+  echo "ghostty: unsupported command '$1' (only +ssh is available in Droppy)" >&2
+  exit 2
+fi
+shift
+
+forward_env=true
+terminfo=true
+while [ $# -gt 0 ]; do
+  case $1 in
+    --forward-env=false) forward_env=false ;;
+    --forward-env | --forward-env=true) ;;
+    --terminfo=false) terminfo=false ;;
+    --terminfo | --terminfo=true) ;;
+    --) shift; break ;;
+    --*) echo "ghostty +ssh: unknown flag '$1'" >&2; exit 2 ;;
+    *) break ;;
+  esac
+  shift
+done
+
+if [ $# -eq 0 ]; then
+  echo "ghostty +ssh: no ssh arguments provided" >&2
+  exit 2
+fi
+
+term=xterm-256color
+dest=
+cache=
+if $terminfo; then
+  # ssh -G prints the resolved user, hostname and port, so aliases from ~/.ssh/config share one cache key.
+  dest=$(ssh -G "$@" 2>/dev/null | awk '
+    $1 == "user" { u = $2 } $1 == "hostname" { h = $2 } $1 == "port" { p = $2 }
+    END { if (u != "" && h != "") print u "@" h (p != "" && p != 22 ? ":" p : "") }')
+  cache="$HOME/Library/Caches/dev.droppy.Droppy/ssh-terminfo-hosts"
+  if [ -z "$dest" ]; then
+    echo "Warning: could not resolve ssh destination; skipping terminfo install" >&2
+  elif grep -qxF "$dest" "$cache" 2>/dev/null; then
+    term=xterm-ghostty
+  else
+    echo "Setting up xterm-ghostty terminfo on $dest..." >&2
+    terminfo_dir="$(dirname "$0")/../Resources/terminfo"
+    entry=$(TERMINFO="$terminfo_dir" infocmp -x xterm-ghostty 2>/dev/null)
+    control="${TMPDIR:-/tmp}/droppy-ssh-$(id -u)-$$"
+    if [ -n "$entry" ] && printf '%s\n' "$entry" |
+      ssh -o ControlMaster=yes -o ControlPersist=60s -o "ControlPath=$control" "$@" \
+        'command -v tic >/dev/null 2>&1 || exit 1; mkdir -p ~/.terminfo 2>/dev/null && tic -x - 2>/dev/null' \
+        >/dev/null 2>&1; then
+      term=xterm-ghostty
+      new_host=$dest
+      set -- -o "ControlPath=$control" "$@"
+    else
+      echo "Warning: failed to install terminfo" >&2
+    fi
+  fi
+fi
+
+if $forward_env || $terminfo; then
+  TERM=$term
+  export TERM
+fi
+
+if $forward_env; then
+  set -- -o SendEnv=COLORTERM -o SendEnv=TERM_PROGRAM -o SendEnv=TERM_PROGRAM_VERSION "$@"
+fi
+
+ssh "$@"
+status=$?
+
+if [ -n "${new_host:-}" ]; then
+  ssh -O exit -o "ControlPath=$control" "$@" >/dev/null 2>&1
+fi
+
+if [ "$status" -eq 0 ] && [ -n "${new_host:-}" ]; then
+  mkdir -p "$(dirname "$cache")" && echo "$new_host" >>"$cache"
+fi
+exit $status

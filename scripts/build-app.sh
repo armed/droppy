@@ -19,6 +19,7 @@ bin="$(swift build -c "$config" --show-bin-path)/Droppy"
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$bin" "$app/Contents/MacOS/Droppy"
+cp Resources/ghostty "$app/Contents/MacOS/ghostty"
 [ "$config" = release ] && strip -x "$app/Contents/MacOS/Droppy"
 cp -R Vendor/share/terminfo "$app/Contents/Resources/"
 cp -R Vendor/share/ghostty "$app/Contents/Resources/"
@@ -43,5 +44,6 @@ cat > "$app/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
+codesign --force --sign - "$app/Contents/MacOS/ghostty"
 codesign --force --sign - "$app"
 echo "built $app"
